@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 2 tested 3 new features: photo upload on tag notes, weekly install summary on Progreso, and area (m²) in TagSheet. Found and fixed a CRITICAL syntax error in TagSheet.jsx (duplicate orphan JSX after component close causing webpack build failure) plus missing handlePhotoPick/clearPhoto handlers and missing photo upload logic in handleSave. Post-fix, backend suite = 34/34 tests passing (25 regression + 9 new). Frontend E2E manually verified end-to-end: photo upload → save → timeline miniature (returns 200 image/png), area displayed correctly (2.99 × 5.72 m → 17.10 m²), weekly summary shows Esta semana=4, Semana anterior=0, delta=+4 after installing 4 test panels.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "TagSheet.jsx", "issue": "CRITICAL (FIXED): duplicate orphan JSX after closing `};` (lines 240-251) caused webpack parse error; entire frontend failed to compile. Removed the duplicate block.", "selector": "-", "priority": "CRITICAL"},
+      {"component": "TagSheet.jsx", "issue": "CRITICAL (FIXED): handlePhotoPick and clearPhoto referenced but not defined; handleSave did not upload the selected photo (photo path was never sent to /api/tags). Added both handlers and photo upload before saveTag.", "selector": "photo-file-input, photo-remove-button, tag-sheet-save-button", "priority": "CRITICAL"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_new_features.py",
+    "/app/test_reports/pytest/pytest_new_features.xml"
+  ],
+  "action_items": [
+    "Main agent: re-review TagSheet.jsx — I removed a duplicate JSX block and added missing handlers (handlePhotoPick, clearPhoto) and the missing photo-upload step in handleSave. Please confirm the fix aligns with the intended implementation (particularly: the current implementation uploads the photo first via api.uploadPhoto then calls api.saveTag with { photo: path }; matches backend contract).",
+    "Consider validating in api.uploadPhoto that error responses surface a friendlier message (currently thrown as 'HTTP 4xx')."
+  ],
+  "critical_code_review_comments": [
+    "TagSheet.jsx had a compile-breaking duplicate JSX block after the component's closing `};` — must be avoided; add pre-commit lint hook.",
+    "handleSave originally silently ignored photoFile — feature would have been fully broken even if syntax was OK. Consider adding a Jest/RTL test around handleSave.",
+    "Backend POST /api/upload correctly enforces content-type whitelist and 10MB size limit; GET /api/files/{path} correctly returns 404 when record missing. Weekly stats correctly filter by facade set (C/L marks) and Mon-Sun window.",
+    "api.js: fetch responses do not attempt to parse the error body — errors show as generic 'HTTP 4xx'. Minor UX improvement."
+  ],
+  "updated_files": ["/app/frontend/src/components/TagSheet.jsx", "/app/backend/tests/test_new_features.py"],
+  "success_rate": {"backend": "100% (34/34)", "frontend": "100% of exercised flows"},
+  "test_credentials": "Admin password: admin2026 (from /app/memory/test_credentials.md). Viewer: no password.",
+  "seed_data_creation": "Created a few TEST_* tagged tags on C1 facade panels; all cleaned up after via db.tags.delete_many({observations.text: /^TEST_/}). Uploaded photos remain in object storage (Emergent) — not accessible for programmatic delete via API; DB `files` records remain.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend suites are /app/backend/tests/backend_test.py (regression, 25 tests) and /app/backend/tests/test_new_features.py (new features, 9 tests). Frontend tabs: use [data-testid=\"tab-objects\"] / [data-testid=\"tab-progress\"] rather than page.goto because the 3D viewer on '/' loads a 57MB GLB and blocks networkidle. Use wait_until='domcontentloaded'. Login flow uses data-testid role-admin-button → admin-password-input → admin-password-submit (NOT admin-login-button).",
+  "rca of the issue": "TagSheet.jsx had two problems introduced during the new-photo-feature edit: (1) an accidental duplicate JSX fragment left orphaned after the closing `};` of the component — this triggered a Babel/ESLint parse error and webpack failed to compile the whole frontend; (2) the actual photo-upload wiring was missing — handlePhotoPick and clearPhoto were referenced in JSX but never declared, and handleSave passed observation only (no photo path) to api.saveTag. Fix: removed the duplicate orphan block; declared handlePhotoPick / clearPhoto (with URL.createObjectURL preview + revoke on clear); modified handleSave to upload the file via api.uploadPhoto first and forward { photo: result.path } into api.saveTag. Verified end-to-end: /api/upload → 200 {path}, /api/tags PUT → 200, GET /object shows observation with photo, timeline miniature link returns 200 image/png, and stats.semana.actual incremented +1 per install."
+}

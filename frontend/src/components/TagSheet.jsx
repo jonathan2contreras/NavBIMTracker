@@ -1,15 +1,18 @@
-import React, { useCallback, useMemo, useState } from "react";
-import { Box, Compass, Eye, Loader2, MessageSquare, X, XCircle } from "lucide-react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import { Box, Camera, Compass, Eye, Loader2, MessageSquare, X, XCircle } from "lucide-react";
 
-import { api } from "../lib/api";
+import { api, fileUrl } from "../lib/api";
 import { useRole } from "../context/RoleContext";
-import { FACADE_LABELS, NO_STATUS_COLOR, STATUSES, formatDate, formatDims, statusMeta } from "../lib/theme";
+import { FACADE_LABELS, NO_STATUS_COLOR, STATUSES, formatArea, formatDate, formatDims, statusMeta } from "../lib/theme";
 
 export const TagSheet = ({ obj, onClose, onSaved }) => {
   const { isAdmin } = useRole();
   const readOnly = !isAdmin;
   const [status, setStatus] = useState(obj.status);
   const [observation, setObservation] = useState("");
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const fileInputRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -29,12 +32,31 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
     return all.reverse();
   }, [obj]);
 
+  const handlePhotoPick = useCallback((e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  }, []);
+
+  const clearPhoto = useCallback(() => {
+    setPhotoFile(null);
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setPhotoPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [photoPreview]);
+
   const handleSave = useCallback(async () => {
     setSaving(true);
     setError("");
     try {
       const newObs = observation.trim();
-      await api.saveTag({ object_name: obj.name, status, observation: newObs });
+      let photoPath = null;
+      if (photoFile) {
+        const up = await api.uploadPhoto(photoFile);
+        photoPath = up.path;
+      }
+      await api.saveTag({ object_name: obj.name, status, observation: newObs, photo: photoPath });
       const prevList = obj.observations || [];
       const latest = newObs || (prevList.length ? prevList[prevList.length - 1].text : "") || "";
       onSaved?.({ ...obj, status, observation: latest });
@@ -43,9 +65,10 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
       setError("No se pudo guardar. Inténtalo de nuevo.");
       setSaving(false);
     }
-  }, [obj, status, observation, onSaved, onClose]);
+  }, [obj, status, observation, photoFile, onSaved, onClose]);
 
   const dims = formatDims(obj.dimensions);
+  const area = formatArea(obj.dimensions);
 
   return (
     <div className="fixed inset-0 z-50" data-testid="tag-sheet">
@@ -70,6 +93,11 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
             {!!dims && (
               <p className="mt-0.5 text-xs text-[#8E8E93]" data-testid="tag-sheet-dimensions">
                 Dimensiones: {dims} (ancho × alto)
+              </p>
+            )}
+            {!!area && (
+              <p className="mt-0.5 text-xs text-[#8E8E93]" data-testid="tag-sheet-area">
+                Superficie: {area}
               </p>
             )}
           </div>
@@ -122,6 +150,34 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
                 placeholder="Añadir nueva nota..."
                 className="min-h-[80px] w-full resize-y rounded-xl bg-[#F2F2F7] px-3 py-3 text-sm text-[#111111] outline-none placeholder:text-[#8E8E93]"
               />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoPick}
+                data-testid="photo-file-input"
+              />
+              {photoPreview ? (
+                <div className="mt-2 flex items-center gap-3" data-testid="photo-preview">
+                  <img src={photoPreview} alt="Foto adjunta" className="h-16 w-16 rounded-lg border border-[#E5E5EA] object-cover" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold text-[#111111]">{photoFile?.name}</p>
+                    <p className="text-[11px] text-[#8E8E93]">Se adjuntará al guardar</p>
+                  </div>
+                  <button onClick={clearPhoto} data-testid="photo-remove-button" className="rounded-full p-1.5 hover:bg-[#F2F2F7]">
+                    <X size={16} className="text-[#8E8E93]" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  data-testid="photo-attach-button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="mt-2 flex h-9 items-center gap-1.5 rounded-full border border-[#E5E5EA] bg-white px-3.5 text-[13px] font-semibold text-[#3A3A3C] transition-colors hover:bg-[#F2F2F7]"
+                >
+                  <Camera size={15} /> Adjuntar foto de obra
+                </button>
+              )}
             </>
           )}
 
@@ -151,7 +207,25 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
                       {g.obs.map((ob, i) => (
                         <div key={`ob-${ob.date}-${i}`} className="flex items-start gap-2 py-1 pl-4" data-testid={`timeline-obs-${gi}-${i}`}>
                           <MessageSquare size={13} className="mt-0.5 shrink-0 text-[#8E8E93]" />
-                          <span className="flex-1 text-[13px] text-[#3A3A3C]">{ob.text}</span>
+                          <div className="min-w-0 flex-1">
+                            {!!ob.text && <span className="block text-[13px] text-[#3A3A3C]">{ob.text}</span>}
+                            {!!ob.photo && (
+                              <a
+                                href={fileUrl(ob.photo)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                data-testid={`timeline-photo-${gi}-${i}`}
+                                className="mt-1 inline-block"
+                              >
+                                <img
+                                  src={fileUrl(ob.photo)}
+                                  alt="Foto de obra"
+                                  loading="lazy"
+                                  className="h-16 w-16 rounded-lg border border-[#E5E5EA] object-cover transition-opacity hover:opacity-80"
+                                />
+                              </a>
+                            )}
+                          </div>
                           <span className="text-xs text-[#8E8E93]">{formatDate(ob.date)}</span>
                         </div>
                       ))}

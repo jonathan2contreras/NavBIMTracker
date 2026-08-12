@@ -35,6 +35,17 @@ export function formatDate(iso) {
   return d.toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+export function formatArea(d) {
+  if (!d || d.length < 3) return "";
+  let w = Math.max(d[0], d[2]);
+  let h = d[1];
+  if (w > 100 || h > 100) {
+    w /= 1000;
+    h /= 1000;
+  }
+  return `${(w * h).toFixed(2)} m²`;
+}
+
 export function formatDims(d) {
   if (!d || d.length < 3) return "";
   let w = Math.max(d[0], d[2]);

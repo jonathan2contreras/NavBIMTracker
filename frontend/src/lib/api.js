@@ -12,7 +12,16 @@ async function req(path, opts) {
   return r.json();
 }
 
+export const fileUrl = (path) => `${BASE}/api/files/${path}`;
+
 export const api = {
+  uploadPhoto: async (file) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await fetch(`${BASE}/api/upload`, { method: "POST", body: fd });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  },
   getObjects: (p) =>
     req(
       `/objects?search=${encodeURIComponent(p.search || "")}&status=${p.status || "all"}&facade=${p.facade || "all"}&skip=${p.skip || 0}&limit=${p.limit || 50}`
