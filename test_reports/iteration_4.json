@@ -1,0 +1,29 @@
+{
+  "summary": "Verified 2 production bug fixes on preview: (BUG1) stats.semana.actual only counts objects with CURRENT status='instalado' using max install-date; toggling 'fabricado' does not increment, 'instalado' increments by 1, reverting to 'fabricado' decrements, ping-pong instalado→fabricado→instalado counts once, and clearing status stays at 0. (BUG2) fetch_tags_map skips malformed tag docs (status=int, history=str, observations=None) so /api/stats, /api/tags, /api/objects all keep returning 200. Backend: 11/11 new bugfix tests + 40/40 regression (backend_test.py 25, test_new_features.py 9, test_photos_and_dedup.py 6) = 51/51 sequential PASS. Frontend E2E: admin login (admin2026) → tab-objects → search C1 → open TagSheet → mark 'instalado' → save → tab-progress → weekly-current-count=1; then page.route intercept **/api/stats→500 makes progress-error + progress-retry-button appear; unroute + click Reintentar restores dashboard (count=1). Cleaned db.tags (now 0 docs) and removed malformed doc.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_bugfixes_iter4.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_new_features.py",
+    "/app/backend/tests/test_photos_and_dedup.py",
+    "/app/test_reports/pytest/iter4_bugfixes.xml",
+    "/app/test_reports/pytest/iter4_regression.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py get_stats semana block correctly restricts to t.status=='instalado' and uses max(inst_dates) from history — ensures one count per object regardless of how many install events there are in the current week. Correct fix.",
+    "fetch_tags_map now try/except around Tag.from_mongo — good defensive coding. Warning uses object_name from raw doc (safe since it's a getattr on dict). Consider logging the exception too for debugging (currently swallowed with a generic warning).",
+    "ProgressPage: retry state machine is correct (setError(false)+setLoading(true) before refetch). data-testid coverage is complete for the error path (progress-error, progress-retry-button).",
+    "server.py is ~742 lines — repeat suggestion from iter3 to split into modules (photos/tags/report/stats) for maintainability.",
+    "No hardcoded URLs; env-driven throughout. Auth remains admin-password based (no bcrypt cookies — this app uses a shared-password model per PRD, so bcrypt/CORS/httpOnly playbook items are N/A here)."
+  ],
+  "updated_files": ["/app/backend/tests/test_bugfixes_iter4.py"],
+  "success_rate": {"backend": "100% (51/51 sequential)", "frontend": "100% of exercised flows"},
+  "test_credentials": "Admin: admin2026 (from /app/memory/test_credentials.md). Viewer: no password.",
+  "seed_data_creation": "Temporarily tagged one norte C1 facade panel as instalado→fabricado→instalado→cleared during test; inserted+deleted malformed doc {object_name:'DOC_MALFORMADO_TEST_ITER4', status:123, history:'no-es-lista', observations:null}. Final state: db.tags empty (countDocuments=0).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Now 4 backend suites — run sequentially with `-o addopts=''`: backend_test.py (25), test_new_features.py (9), test_photos_and_dedup.py (6), test_bugfixes_iter4.py (11) = 51 tests. Bug-fix suite uses pymongo directly on MONGO_URL/DB_NAME from /app/backend/.env to insert/remove a malformed tag. Frontend tab-* testids exist but immediately after login (redirect to '/') the 57MB GLB loads; tab-objects/tab-progress remain clickable but sometimes need a longer wait — using a get_by_role('link', name='...') fallback is reliable. Route interception via page.route('**/api/stats',...) is a clean way to force the error state.",
+  "rca of the issue": "N/A — both fixes are correct and behave as described. Root causes of the original bugs: (1) weekly counter iterated history events for status transitions, so fabricado→instalado→fabricado→instalado added two 'instalado' events in the same week; fix restricts to CURRENT status and uses max install date. (2) fetch_tags_map ran Tag.from_mongo() on every doc; a single malformed doc raised a validation error that bubbled to 500 across /api/stats, /api/tags, and /api/objects; fix wraps parsing in try/except and skips with warning."
+}

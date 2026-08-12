@@ -210,7 +210,11 @@ def display_name(name: str) -> str:
 async def fetch_tags_map() -> dict:
     tags = {}
     async for doc in db.tags.find():
-        t = Tag.from_mongo(doc)
+        try:
+            t = Tag.from_mongo(doc)
+        except Exception:
+            logging.warning(f"Skipping malformed tag doc: {doc.get('object_name')}")
+            continue
         tags[t.object_name] = t
     return tags
 

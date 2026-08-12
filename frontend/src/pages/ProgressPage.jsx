@@ -75,8 +75,18 @@ export default function ProgressPage() {
             <Loader2 size={32} className="animate-spin text-[#1C1C1E]" />
           </div>
         ) : error || !stats ? (
-          <div className="flex h-64 items-center justify-center" data-testid="progress-error">
+          <div className="flex h-64 flex-col items-center justify-center gap-4" data-testid="progress-error">
             <p className="text-sm text-[#8E8E93]">Error al calcular estadísticas</p>
+            <button
+              data-testid="progress-retry-button"
+              onClick={() => {
+                setLoading(true);
+                fetchStats();
+              }}
+              className="h-11 rounded-xl bg-[#1C1C1E] px-6 text-sm font-bold text-white"
+            >
+              Reintentar
+            </button>
           </div>
         ) : (
           <div className="flex flex-col gap-4">
