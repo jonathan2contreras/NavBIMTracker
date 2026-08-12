@@ -7,6 +7,7 @@ import AppLayout from "@/components/AppLayout";
 import LoginPage from "@/pages/LoginPage";
 import ViewerPage from "@/pages/ViewerPage";
 import ObjectsPage from "@/pages/ObjectsPage";
+import PhotosPage from "@/pages/PhotosPage";
 import ProgressPage from "@/pages/ProgressPage";
 import ReportsPage from "@/pages/ReportsPage";
 
@@ -26,6 +27,7 @@ function App() {
           <Route element={<AppLayout />}>
             <Route path="/" element={<ViewerPage />} />
             <Route path="/objects" element={<ObjectsPage />} />
+            <Route path="/photos" element={<PhotosPage />} />
             <Route path="/progress" element={<ProgressPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -200,6 +200,13 @@ class DimsPayload(BaseModel):
 
 # ---------- Helpers ----------
 
+def display_name(name: str) -> str:
+    parts = name.split(" ")
+    if len(parts) >= 2 and parts[0] == parts[1]:
+        parts.pop(1)
+    return " ".join(parts)
+
+
 async def fetch_tags_map() -> dict:
     tags = {}
     async for doc in db.tags.find():
@@ -324,6 +331,43 @@ async def serve_file(path: str):
         raise HTTPException(status_code=502, detail="No se pudo descargar la foto.")
     return Response(content=data, media_type=record.get("content_type") or ct,
                     headers={"Cache-Control": "public, max-age=86400"})
+
+
+@api_router.get("/photos")
+async def list_photos(
+    facade: str = "all",
+    from_: str = Query(default="", alias="from"),
+    to: str = "",
+):
+    """Gallery of all obra photos attached to observations, filterable by facade and date."""
+    if facade != "all" and facade not in VALID_FACADES:
+        raise HTTPException(status_code=422, detail="Fachada inválida")
+    items = []
+    async for doc in db.tags.find({"observations.photo": {"$exists": True}}):
+        t = Tag.from_mongo(doc)
+        fac = FACADES.get(t.object_name)
+        if facade != "all" and fac != facade:
+            continue
+        for ob in t.observations or []:
+            photo = ob.get("photo")
+            if not photo:
+                continue
+            d = (ob.get("date") or "")[:10]
+            if from_ and d < from_:
+                continue
+            if to and d > to:
+                continue
+            items.append({
+                "name": t.object_name,
+                "mark": t.object_name.split(" ")[0],
+                "facade": fac,
+                "photo": photo,
+                "text": ob.get("text", ""),
+                "date": ob.get("date"),
+                "status": t.status,
+            })
+    items.sort(key=lambda x: x["date"] or "", reverse=True)
+    return {"total": len(items), "items": items}
 
 
 @api_router.get("/objects")
@@ -587,7 +631,7 @@ def make_pdf(data: dict, from_: str, to: str, status: str, facade: str = "all") 
     rows = [["Pieza", "Estado", "Fachada", "Fecha", "Observación"]]
     for it in data["items"]:
         rows.append([
-            Paragraph(it["name"], styles["BodyText"]),
+            Paragraph(display_name(it["name"]), styles["BodyText"]),
             STATUS_LABELS.get(it["status"], it["status"]),
             FACADE_LABELS.get(it.get("facade") or "", "—"),
             (it["date"] or "")[:10],
@@ -633,7 +677,7 @@ def make_xlsx(data: dict, from_: str, to: str, status: str, facade: str = "all")
         c.fill = PatternFill(start_color="1C1C1E", end_color="1C1C1E", fill_type="solid")
     for it in data["items"]:
         ws.append([
-            it["name"],
+            display_name(it["name"]),
             STATUS_LABELS.get(it["status"], it["status"]),
             FACADE_LABELS.get(it.get("facade") or "", "—"),
             (it["date"] or "")[:10],

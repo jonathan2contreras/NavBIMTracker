@@ -24,6 +24,13 @@ export const LOGOS = [
   { key: "grcontreras", src: "/logo_grcontreras.png", ratio: 921 / 372 },
 ];
 
+export function displayName(name) {
+  if (!name) return name;
+  const parts = name.split(" ");
+  if (parts.length >= 2 && parts[0] === parts[1]) parts.splice(1, 1);
+  return parts.join(" ");
+}
+
 export function statusMeta(status) {
   return STATUSES.find((s) => s.key === status) || null;
 }

@@ -1,12 +1,13 @@
 import React from "react";
 import { Navigate, NavLink, Outlet } from "react-router-dom";
-import { Box, List, PieChart } from "lucide-react";
+import { Box, Camera, List, PieChart } from "lucide-react";
 
 import { useRole } from "../context/RoleContext";
 
 const TABS = [
   { to: "/", label: "Modelo 3D", icon: Box, end: true, testId: "tab-viewer" },
   { to: "/objects", label: "Objetos", icon: List, testId: "tab-objects" },
+  { to: "/photos", label: "Fotos", icon: Camera, testId: "tab-photos" },
   { to: "/progress", label: "Progreso", icon: PieChart, testId: "tab-progress" },
 ];
 

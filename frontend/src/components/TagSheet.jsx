@@ -3,7 +3,7 @@ import { Box, Camera, Compass, Eye, Loader2, MessageSquare, X, XCircle } from "l
 
 import { api, fileUrl } from "../lib/api";
 import { useRole } from "../context/RoleContext";
-import { FACADE_LABELS, NO_STATUS_COLOR, STATUSES, formatArea, formatDate, formatDims, statusMeta } from "../lib/theme";
+import { FACADE_LABELS, NO_STATUS_COLOR, STATUSES, displayName, formatArea, formatDate, formatDims, statusMeta } from "../lib/theme";
 
 export const TagSheet = ({ obj, onClose, onSaved }) => {
   const { isAdmin } = useRole();
@@ -80,7 +80,7 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-base font-bold text-[#111111]" data-testid="tag-sheet-object-name">
-              {obj.name}
+              {displayName(obj.name)}
             </p>
             {!!obj.facade && FACADE_LABELS[obj.facade] && (
               <p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-[#007AFF]" data-testid="tag-sheet-facade">

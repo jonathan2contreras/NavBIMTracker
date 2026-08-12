@@ -17,7 +17,7 @@ import {
 
 import { api, BACKEND_URL } from "../lib/api";
 import { Chip } from "../components/Chip";
-import { FACADE_FILTERS, FACADE_LABELS, NO_STATUS_COLOR, STATUSES, formatDate, statusMeta } from "../lib/theme";
+import { FACADE_FILTERS, FACADE_LABELS, NO_STATUS_COLOR, STATUSES, displayName, formatDate, statusMeta } from "../lib/theme";
 
 dayjs.locale("es");
 
@@ -337,7 +337,7 @@ export default function ReportsPage() {
                             style={{ backgroundColor: meta ? meta.color : NO_STATUS_COLOR }}
                           />
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-[#111111]">{item.name}</p>
+                            <p className="truncate text-sm font-semibold text-[#111111]">{displayName(item.name)}</p>
                             <p className="mt-0.5 truncate text-xs font-semibold" style={{ color: meta ? meta.accent : "#8E8E93" }}>
                               {meta ? meta.label : item.status}
                               {item.facade && FACADE_LABELS[item.facade] ? `  ·  ${FACADE_LABELS[item.facade]}` : ""}

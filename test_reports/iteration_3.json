@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 3 verified 2 new features: (a) GET /api/photos + /photos frontend gallery + lightbox; (b) UI-only dedup of duplicated marks (e.g. 'C1 C1 [6420986]' -> 'C1 [6420986]') across ObjectsPage rows, TagSheet title, ReportsPage rows, ViewerPage focused banner, and in server-side PDF/XLSX exports (Pieza column). Ran 25 regression + 9 iteration-2 + 6 new iteration-3 backend tests = 40/40 PASSING sequentially. Frontend E2E via Playwright: login → tab-photos → grid (6 fotos incl. test upload) → dedup verified on card title + lightbox → facade filter (sur=0) → invalid date shows red error → future date shows empty state → tab-objects rows for duplicated-mark objects display deduped names while data-testid preserves original name → /photos route guard redirects to /login when role is cleared. Cleaned up TEST_* observations from db.tags.",
+  "backend_issues": {"critical": [], "minor": [
+    {"endpoint": "pytest suite (xdist)", "issue": "test_photos_and_dedup and backend_test.py can pick the same facade object under xdist parallel workers, causing a benign race in test_tag_clear_keeps_observations. Sequential run passes 40/40. Consider using a distinct facade or a per-suite object prefix in _pick_facade_obj to isolate."}
+  ]},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_new_features.py",
+    "/app/backend/tests/test_photos_and_dedup.py",
+    "/app/test_reports/pytest/iter3.xml"
+  ],
+  "action_items": [
+    "(Optional) Isolate _pick_facade_obj between test suites to enable xdist parallel runs (currently 1 flaky test under -n auto; sequential run is 100%).",
+    "(Optional) In api.js, surface server error body text instead of generic 'HTTP 4xx' — carried over from iter 2."
+  ],
+  "critical_code_review_comments": [
+    "server.py list_photos correctly validates facade (422 on invalid), filters by observations.photo existence, applies facade + from/to (YYYY-MM-DD) filters, and sorts by date desc — implementation is clean and correct.",
+    "display_name helper is applied consistently in make_pdf and make_xlsx (Pieza column) and on all frontend surfaces (ObjectsPage, TagSheet title, ReportsPage, ViewerPage focused banner, PhotosPage cards + lightbox). API endpoints (/api/objects, /api/object) correctly preserve the original name so data-testid selectors remain stable.",
+    "PhotosPage: solid UX with loading spinner, empty state, error surface for invalid date format, and lightbox with backdrop-click + explicit close. Uses fileUrl() so images route through /api/files which properly 404s missing records.",
+    "AppLayout guards routes via useRole()/Navigate to /login — /photos is properly gated.",
+    "server.py is now ~740 lines; consider splitting routes into modules (photos/tags/report) for maintainability."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_photos_and_dedup.py"
+  ],
+  "success_rate": {"backend": "100% sequential (40/40); 39/40 under xdist due to inter-suite race", "frontend": "100% of exercised flows"},
+  "test_credentials": "Admin: admin2026 (from /app/memory/test_credentials.md). Viewer: no password.",
+  "seed_data_creation": "Created TEST_photos_iter3_* observation with 1 uploaded PNG on a norte C1 panel; cleaned up via db.tags.updateMany $pull observations.text /^TEST_/ (all TEST_* observations from prior iterations also removed).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "3 backend suites: backend_test.py (25), test_new_features.py (9), test_photos_and_dedup.py (6). Run sequentially with `-o addopts=''` to avoid xdist inter-suite races. Frontend: after admin login the app lands on the 3D viewer (57MB GLB) which delays some selectors; use page.get_by_role('link', name='Fotos').click() as a fallback to [data-testid='tab-photos']. /photos route guard works via localStorage.removeItem('bim_role').",
+  "rca of the issue": "No blocking issues found. The pytest xdist inter-suite race exists because both suites call _pick_facade_obj() and may pick the same norte C/L object; when one suite sets status='instalado' while the other expects status=None a false-negative occurs. Mitigation: run sequential (already documented) or namespace picks per suite. Not a production bug — purely a test isolation concern."
+}

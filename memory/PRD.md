@@ -29,6 +29,8 @@
 - [x] Fotos de avance: adjuntar foto de obra a cada nota (TagSheet → botón "Adjuntar foto de obra", preview, miniatura en el historial). Backend: Emergent Object Storage (EMERGENT_LLM_KEY en .env), POST /api/upload (whitelist de imágenes, máx 10MB), GET /api/files/{path}, campo `photo` en observations. Registros en colección `files` (soft-delete is_deleted). Testeado iteration_2 (34/34 backend + frontend OK).
 - [x] Resumen semanal en Progreso: tarjeta "INSTALACIONES SEMANALES" (esta semana vs anterior + delta), datos en `semana` de GET /api/stats (eventos instalado del history, semana Lun-Dom, solo paneles de fachada).
 - [x] Superficie en m² en el TagSheet debajo de las dimensiones (`formatArea`: max(sx,sz) × sy, conversión mm→m si >100).
+- [x] Galería de fotos de obra: nueva pestaña "Fotos" (/photos) con grid de tarjetas, chips de fachada, filtro por rango de fechas y lightbox. Endpoint GET /api/photos?facade&from&to (recorre observations con photo, orden fecha desc). Testeado iteration_3 (40/40 backend + frontend OK).
+- [x] Dedup de códigos de objeto en la UI: "C1 C1 [6420986]" se muestra como "C1 [6420986]" (helper `displayName` en frontend: ObjectsPage/TagSheet/ReportsPage/Viewer banner/PhotosPage; `display_name` en backend solo para exports PDF/Excel). La API mantiene los nombres originales (claves estables).
 
 ## Backlog priorizado
 - P2: autorización real en endpoints de escritura (hoy la verificación admin es solo client-side).

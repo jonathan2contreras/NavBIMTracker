@@ -5,7 +5,7 @@ import { Box, ChevronRight, Compass, Loader2, Search, XCircle } from "lucide-rea
 import { api } from "../lib/api";
 import { TagSheet } from "../components/TagSheet";
 import { Chip } from "../components/Chip";
-import { FACADE_FILTERS, FACADE_LABELS, NO_STATUS_COLOR, STATUSES, statusMeta } from "../lib/theme";
+import { FACADE_FILTERS, FACADE_LABELS, NO_STATUS_COLOR, STATUSES, displayName, statusMeta } from "../lib/theme";
 
 const PAGE_SIZE = 50;
 
@@ -189,7 +189,7 @@ export default function ObjectsPage() {
                     style={{ backgroundColor: meta ? meta.color : NO_STATUS_COLOR }}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-[#111111]">{item.name}</p>
+                    <p className="truncate text-sm font-semibold text-[#111111]">{displayName(item.name)}</p>
                     <p className="mt-0.5 flex items-center gap-1 text-xs">
                       <span className="font-semibold" style={{ color: meta ? meta.accent : "#8E8E93" }}>
                         {meta ? meta.label : "Sin estado"}

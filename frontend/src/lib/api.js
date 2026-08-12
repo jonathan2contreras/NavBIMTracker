@@ -32,6 +32,8 @@ export const api = {
   getStats: () => req("/stats"),
   getReport: (p) =>
     req(`/report?from=${p.from}&to=${p.to}&status=${p.status || "all"}&facade=${p.facade || "all"}`),
+  getPhotos: (p) =>
+    req(`/photos?facade=${p.facade || "all"}&from=${p.from || ""}&to=${p.to || ""}`),
   verifyAdmin: (password) =>
     req("/admin/verify", { method: "POST", body: JSON.stringify({ password }) }),
 };

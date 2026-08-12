@@ -4,7 +4,7 @@ import { AlertCircle, Hand, Loader2, Tag, X } from "lucide-react";
 
 import { api, VIEWER_URL } from "../lib/api";
 import { TagSheet } from "../components/TagSheet";
-import { NO_STATUS_COLOR, STATUSES } from "../lib/theme";
+import { NO_STATUS_COLOR, STATUSES, displayName } from "../lib/theme";
 
 const ISO_FILTERS = [
   { key: "all", label: "Todas" },
@@ -173,7 +173,7 @@ export default function ViewerPage() {
           <div className="flex w-full max-w-xl items-center gap-3 rounded-xl bg-white px-4 py-3 shadow-lg" data-testid="focused-piece-banner">
             <div className="min-w-0 flex-1">
               <p className="text-[10px] font-bold tracking-wide text-[#8E8E93]">PIEZA ENFOCADA</p>
-              <p className="truncate text-[13px] font-bold text-[#111111]">{focusedName}</p>
+              <p className="truncate text-[13px] font-bold text-[#111111]">{displayName(focusedName)}</p>
             </div>
             <button
               data-testid="focused-tag-button"
