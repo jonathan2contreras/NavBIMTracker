@@ -515,16 +515,16 @@ async def get_stats():
     prev_from, prev_to = (monday - timedelta(days=7)).isoformat(), (monday - timedelta(days=1)).isoformat()
     semana = {"actual": 0, "anterior": 0, "desde": cur_from, "hasta": cur_to}
     for name, t in tags.items():
-        if name not in FACADE_NAMES:
+        if name not in FACADE_NAMES or t.status != "instalado":
             continue
-        for ev in t.history or []:
-            if ev.get("status") != "instalado":
-                continue
-            d = (ev.get("date") or "")[:10]
-            if cur_from <= d <= cur_to:
-                semana["actual"] += 1
-            elif prev_from <= d <= prev_to:
-                semana["anterior"] += 1
+        inst_dates = [(ev.get("date") or "")[:10] for ev in t.history or [] if ev.get("status") == "instalado"]
+        if not inst_dates:
+            continue
+        d = max(inst_dates)
+        if cur_from <= d <= cur_to:
+            semana["actual"] += 1
+        elif prev_from <= d <= prev_to:
+            semana["anterior"] += 1
     return {
         "total": total,
         "counts": counts,
