@@ -1,0 +1,39 @@
+# PRD — BIMTracker Web (versión web de la app de seguimiento de piezas sobre modelo 3D)
+
+## Problema original
+"construye la aplicacion web utilizando el archivo subido" — el archivo NavBIMTracker-main.zip contiene la app móvil Expo + backend FastAPI de BIMTracker (modelo NAB 3D.glb, 12.275 objetos, 533 paneles de fachada).
+
+## Elecciones del usuario (junio 2026)
+- Réplica completa: login por roles, visor 3D, lista de piezas, dashboard de avance y reportes PDF/Excel.
+- Mismo acceso: Administrador con contraseña "admin2026" y Usuario solo lectura.
+- Mismo estilo visual que la app móvil (con los 3 logos corporativos).
+
+## Arquitectura
+- **Backend (FastAPI + MongoDB)**: reutilizado tal cual del zip (`/app/backend/server.py`). Sirve el GLB (`/api/model`) y el visor three.js (`/api/viewer` → `static/viewer.html`); catálogo cacheado en `static/objects.json` (12.275), fachadas en `static/facades.json`, dimensiones en `static/dims.json`. Endpoints: GET /api/objects (search/status/facade/skip/limit), GET /api/object?name=, GET/PUT /api/tags (upsert con history + observations; borra si status null sin obs históricas), GET /api/stats (533 paneles, por_fachada), GET /api/report + /api/report/export (pdf/xlsx con membrete de logos), POST /api/admin/verify (bcrypt vs ADMIN_PASSWORD_HASH en .env, comillas simples), POST /api/facades, POST /api/dims. Colección Mongo `tags` (índice único object_name).
+- **Frontend (React CRA + Tailwind, puerto 3000)**: reescrito desde Expo a React web.
+  - `src/lib/api.js` (cliente fetch), `src/lib/theme.js` (STATUSES/colores/logos/helpers).
+  - `src/context/RoleContext.jsx`: rol en localStorage `bim_role` ("admin"|"viewer").
+  - `src/components/AppLayout.jsx`: navbar superior con tabs (Modelo 3D /, Objetos /objects, Progreso /progress) + guard de rutas; `/reports` y `/login` fuera del layout.
+  - `src/pages/ViewerPage.jsx`: iframe de /api/viewer + canal postMessage (comandos {__viewerCmd:true,cmd,args}: applyTags, setTag, clearSelection, isolate, focusObject; mensajes entrantes: progress/loaded/error/select). Header glass con chips de aislamiento, banner "Pieza enfocada" (?focus=), hint, overlays de carga (con %) y error con retry.
+  - `src/components/TagSheet.jsx`: panel derecho (drawer) con fachada + pieza + dimensiones, 5 pills de estado, input de notas (solo admin), timeline historial (obs anidadas bajo el estado activo), modo solo lectura para viewer.
+  - `src/pages/ObjectsPage.jsx`: búsqueda con debounce 400ms, chips de estado y de fachada, lista paginada 50 con scroll infinito, botón 3D → /?focus=.
+  - `src/pages/ProgressPage.jsx`: hero % avance sobre 533 paneles + 3 logos, avance por fachada N/S/E/O, grid de tarjetas por estado + Sin estado, botón Reportes, logout.
+  - `src/pages/ReportsPage.jsx`: tipos semanal (instalado)/mensual/personalizado (chips estado + fachada + rango fechas), navegación de períodos con dayjs, resumen con conteos, export PDF/Excel vía anchor download.
+- Colores de estado: Fabricado #007AFF, Enviado #FF9500, Instalado #34C759, Entregable #F3EAD0 (accent #8A7A50), Observaciones #FFD60A (accent #D19E00), Sin estado #B4BAC6.
+
+## Implementado (12 junio 2026)
+- [x] MVP web completo portado desde la app móvil — testeado iteration_1: backend 25/25 pytest, frontend 100%, sin issues críticos.
+- [x] Login por roles con contraseña admin bcrypt (admin2026), guard de rutas, logout.
+- [x] Visor 3D con etiquetado, aislamiento por estado, foco de pieza desde la lista.
+- [x] Lista con filtros (estado + fachada) y búsqueda, dashboard de avance, reportes con export PDF/Excel.
+
+## Backlog priorizado
+- P2: autorización real en endpoints de escritura (hoy la verificación admin es solo client-side).
+- P2: migrar @app.on_event a lifespan handlers de FastAPI.
+- P2: multiusuario / exportar CSV.
+
+## Notas técnicas
+- No modificar MONGO_URL/DB_NAME. GLB en `/app/backend/static/nab3d.glb`; si se reemplaza, borrar `objects.json` para regenerar catálogo.
+- Logos en `/app/frontend/public/logo_*.png` y en `/app/backend/static/` (membrete PDF).
+- El visor tarda 30-90s en cargar (GLB 57MB) con barra de progreso.
+- Suite de tests backend: `/app/backend/tests/backend_test.py`.

@@ -1,0 +1,32 @@
+{
+  "summary": "First iteration end-to-end testing of the BIMTracker Web port (React + FastAPI + MongoDB). Backend: 25/25 pytest tests pass covering root, admin/verify (ok/bad), viewer HTML, /objects (default, search, facade filter, pagination, limit cap 422), /object (lookup + 404), /stats (533 facade objects, 4 fachadas), /tags PUT upsert (create, status transition history, invalid status 422, invalid object 404, clear-with-preserved-observations), /tags GET map, /report (all, invalid status, date filter), /report/export (pdf magic %PDF, xlsx magic PK, invalid format 422). Frontend: route guard (/, /objects, /progress, /reports redirect to /login when bim_role empty), admin login flow (wrong password shows Spanish error 'Contraseña de administrador incorrecta.', correct 'admin2026' navigates to /), viewer role login (no password), viewer screen with iframe + legend chips all present, Objects page shows '12.275 resultados' and debounced search reduces to '162 resultados' for 'C1', Progress page shows overall pct + 4 facade bars + 3 corporate logos, Reports page shows 3 report types (semanal/mensual/personalizado), period-next disabled at current period, custom filters view has apply button, PDF export triggers download (reporte_YYYY-MM-DD_YYYY-MM-DD.pdf), TagSheet in viewer role hides save/observation input and shows readonly note, TagSheet in admin role shows save/observation/clear/history. Logout clears role and returns to /login. Overall: no critical issues found.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Naming inconsistency: review request refers to report type 'filtros' but the implemented key is 'personalizado' (label is 'Filtros'). data-testid is 'report-type-personalizado'. Not a bug — worth noting for future test scripts and docs.",
+    "Export PDF/Excel share a single 'exporting' state that disables BOTH buttons while one is in progress. This is fine functionally but back-to-back rapid clicks (like automated tests) can miss the second download. Consider per-format disable.",
+    "server.py uses deprecated FastAPI @app.on_event('startup'/'shutdown'). Move to lifespan handlers for modern FastAPI compatibility.",
+    "PUT /api/tags does not delete a tag when only status becomes null but observations history exists — desired behavior per spec, but the empty-status doc will keep appearing in /api/tags map with status=null. Confirmed acceptable but worth documenting.",
+    "CORSMiddleware uses allow_origins=['*'] together with allow_credentials=True — browsers ignore credentials in this combination. If cookies/credentials are ever needed, replace with explicit origin list.",
+    "No auth/authorization on admin-only mutating endpoints (PUT /api/tags, POST /api/facades, POST /api/dims). Password verification is client-side only — an attacker who knows the API can write tags without admin2026. Consider a signed token/session for admin actions."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Administrator password 'admin2026' (per /app/memory/test_credentials.md). Viewer role: no password.",
+  "seed_data_creation": "One test tag created on a real facade object (norte) with status transitions fabricado -> instalado and observations 'TEST_note1', 'TEST_note2'. Final state: status cleared (null) but observations history preserved by design. This tag will appear in /api/report until manually removed. The object name is stable but variable across runs.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest suite is at /app/backend/tests/backend_test.py (25 tests, all passing, ~4.5s). Frontend uses REACT_APP_BACKEND_URL for API calls. Login flow uses localStorage key 'bim_role' with values 'admin'|'viewer'. Report type keys are: semanal, mensual, personalizado (NOT 'filtros' as sometimes referenced). Export buttons share a single exporting state; wait for one download before clicking the next. Facade objects total = 533; total objects = 12275. 3D viewer iframe loads a 57MB GLB and can take 30-90s to fully load — the viewer-loading overlay handling was not deeply exercised (only iframe presence was verified). Clicking a piece INSIDE the 3D iframe was not automated (postMessage-driven).",
+  "rca of the issue": "No blocking issues to RCA. Minor observation: Excel download did not fire during automated back-to-back click because the export button becomes disabled while another export is in progress (shared 'exporting' state in ReportsPage.jsx). Backend xlsx export itself was verified independently via pytest (PK/zip magic + Content-Disposition attachment)."
+}

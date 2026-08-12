@@ -1,0 +1,201 @@
+import React, { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Compass, FileText, Loader2, LogOut } from "lucide-react";
+
+import { api } from "../lib/api";
+import { useRole } from "../context/RoleContext";
+import { LOGOS, NO_STATUS_COLOR, STATUSES } from "../lib/theme";
+
+const FACADE_ORDER = [
+  { key: "norte", label: "Norte" },
+  { key: "sur", label: "Sur" },
+  { key: "este", label: "Este" },
+  { key: "oeste", label: "Oeste" },
+];
+
+const pctLabelOf = (raw) => (raw > 0 && raw < 1 ? "<1%" : `${Math.round(raw)}%`);
+
+export default function ProgressPage() {
+  const navigate = useNavigate();
+  const { role, logout } = useRole();
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      setError(false);
+      setStats(await api.getStats());
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  const pctRaw = stats && stats.total > 0 ? (stats.etiquetados / stats.total) * 100 : 0;
+
+  return (
+    <div className="h-full overflow-y-auto bg-white" data-testid="progress-screen">
+      <div className="mx-auto w-full max-w-3xl px-4 pb-8 pt-4">
+        <div className="flex items-center justify-between pb-2">
+          <div>
+            <h1 className="text-2xl font-extrabold text-[#111111]">Progreso</h1>
+            <p className="mt-0.5 text-[11px] font-semibold text-[#8E8E93]" data-testid="current-role-label">
+              {role === "admin" ? "Administrador" : "Usuario (solo lectura)"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              data-testid="reports-button"
+              onClick={() => navigate("/reports")}
+              className="flex h-9 items-center gap-1.5 rounded-full bg-[#1C1C1E] px-3.5 text-[13px] font-bold text-white transition-opacity hover:opacity-90"
+            >
+              <FileText size={15} /> Reportes
+            </button>
+            <button
+              data-testid="logout-button"
+              onClick={() => {
+                logout();
+                navigate("/login", { replace: true });
+              }}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F2F2F7] transition-opacity hover:opacity-70"
+            >
+              <LogOut size={18} className="text-[#636366]" />
+            </button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex h-64 items-center justify-center" data-testid="progress-loading">
+            <Loader2 size={32} className="animate-spin text-[#1C1C1E]" />
+          </div>
+        ) : error || !stats ? (
+          <div className="flex h-64 items-center justify-center" data-testid="progress-error">
+            <p className="text-sm text-[#8E8E93]">Error al calcular estadísticas</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div className="overflow-hidden rounded-2xl border border-[#E5E5EA] bg-white" data-testid="progress-hero">
+              <div className="flex items-center">
+                <div className="flex-1 p-6">
+                  <p className="text-[11px] font-bold tracking-widest text-[#8E8E93]">AVANCE DE FACHADA</p>
+                  <p className="mt-1 text-5xl font-extrabold text-[#111111]" data-testid="progress-overall-pct">
+                    {pctLabelOf(pctRaw)}
+                  </p>
+                  <p className="mt-0.5 text-[13px] text-[#636366]">
+                    {stats.etiquetados.toLocaleString("es-ES")} de {stats.total.toLocaleString("es-ES")} paneles de
+                    fachada etiquetados
+                  </p>
+                  <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[#E5E5EA]">
+                    <div
+                      className="h-full rounded-full bg-[#1C1C1E]"
+                      style={{ width: `${Math.max(pctRaw, stats.etiquetados > 0 ? 1.5 : 0)}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col items-center justify-center gap-3 pr-5" data-testid="progress-logos">
+                  {LOGOS.map((l) => (
+                    <img
+                      key={l.key}
+                      src={l.src}
+                      alt={l.key}
+                      data-testid={`logo-${l.key}`}
+                      className="h-[38px] object-contain"
+                      style={{ aspectRatio: l.ratio }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {!!stats.por_fachada && (
+              <div className="rounded-xl bg-[#F2F2F7] p-4" data-testid="progress-facade-breakdown">
+                <div className="mb-2 flex items-center gap-1.5">
+                  <Compass size={15} className="text-[#636366]" />
+                  <p className="text-[11px] font-bold tracking-widest text-[#636366]">AVANCE POR FACHADA</p>
+                </div>
+                <div className="flex flex-col gap-2.5">
+                  {FACADE_ORDER.map((f) => {
+                    const d = stats.por_fachada?.[f.key] || { total: 0, etiquetados: 0 };
+                    const pRaw = d.total > 0 ? (d.etiquetados / d.total) * 100 : 0;
+                    return (
+                      <div key={f.key} className="flex items-center gap-2" data-testid={`facade-bar-${f.key}`}>
+                        <span className="w-12 text-[13px] font-semibold text-[#111111]">{f.label}</span>
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#E5E5EA]">
+                          <div
+                            className="h-full rounded-full bg-[#007AFF]"
+                            style={{ width: `${Math.max(pRaw, d.etiquetados > 0 ? 1.5 : 0)}%` }}
+                          />
+                        </div>
+                        <span className="min-w-[78px] text-right text-xs font-semibold text-[#636366]">
+                          {d.etiquetados}/{d.total} · {pctLabelOf(pRaw)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {STATUSES.map((s) => {
+                const count = stats.counts[s.key] || 0;
+                const pRaw = stats.total > 0 ? (count / stats.total) * 100 : 0;
+                return (
+                  <div key={s.key} className="rounded-xl bg-[#F2F2F7] p-4" data-testid={`progress-card-${s.key}`}>
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.accent }} />
+                      <span className="text-[13px] font-semibold text-[#3A3A3C]">{s.label}</span>
+                    </div>
+                    <p className="mt-2 text-[28px] font-extrabold" style={{ color: s.accent }}>
+                      {count.toLocaleString("es-ES")}
+                    </p>
+                    <p className="mt-0.5 text-xs text-[#8E8E93]">{pctLabelOf(pRaw)} de la fachada</p>
+                    <div className="mt-3 h-1 overflow-hidden rounded-full bg-[#E5E5EA]">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.max(pRaw, count > 0 ? 1.5 : 0)}%`,
+                          backgroundColor: s.accent,
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+              {(() => {
+                const sinRaw = stats.total > 0 ? (stats.sin_estado / stats.total) * 100 : 0;
+                return (
+                  <div className="rounded-xl bg-[#F2F2F7] p-4" data-testid="progress-card-sin-estado">
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: NO_STATUS_COLOR }} />
+                      <span className="text-[13px] font-semibold text-[#3A3A3C]">Sin estado</span>
+                    </div>
+                    <p className="mt-2 text-[28px] font-extrabold text-[#6E6E73]">
+                      {stats.sin_estado.toLocaleString("es-ES")}
+                    </p>
+                    <p className="mt-0.5 text-xs text-[#8E8E93]">{pctLabelOf(sinRaw)} de la fachada</p>
+                    <div className="mt-3 h-1 overflow-hidden rounded-full bg-[#E5E5EA]">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.max(sinRaw, stats.sin_estado > 0 ? 1.5 : 0)}%`,
+                          backgroundColor: NO_STATUS_COLOR,
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

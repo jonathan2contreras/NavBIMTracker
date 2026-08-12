@@ -1,0 +1,154 @@
+{
+  "app_name": "BIMTracker",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "Un centro de comando limpio, nativo y utilitario que deja que el modelo 3D y los colores semánticos de estado sean los protagonistas.",
+  "color": {
+    "surface": "#FFFFFF",
+    "onSurface": "#111111",
+    "surfaceSecondary": "#F2F2F7",
+    "onSurfaceSecondary": "#3A3A3C",
+    "surfaceTertiary": "#E5E5EA",
+    "onSurfaceTertiary": "#636366",
+    "surfaceInverse": "#1C1C1E",
+    "onSurfaceInverse": "#FFFFFF",
+    "brand": "#1C1C1E",
+    "brandPrimary": "#1C1C1E",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#3A3A3C",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#E5E5EA",
+    "onBrandTertiary": "#111111",
+    "success": "#34C759",
+    "onSuccess": "#FFFFFF",
+    "warning": "#FF9500",
+    "onWarning": "#FFFFFF",
+    "error": "#FF3B30",
+    "onError": "#FFFFFF",
+    "info": "#007AFF",
+    "onInfo": "#FFFFFF",
+    "status_fabricado": "#007AFF",
+    "on_status_fabricado": "#FFFFFF",
+    "status_enviado": "#FF9500",
+    "on_status_enviado": "#FFFFFF",
+    "status_instalado": "#34C759",
+    "on_status_instalado": "#FFFFFF",
+    "status_entregado": "#AF52DE",
+    "on_status_entregado": "#FFFFFF",
+    "border": "#E5E5EA",
+    "borderStrong": "#C7C7CC",
+    "divider": "#E5E5EA"
+  },
+  "typography": {
+    "displayFontFamily": "Geist",
+    "textFontFamily": "Geist",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous vertical breathing room for readability in daylight, with compact padding inside dense list rows. Touch targets strictly 44pt minimum.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "1",
+  "navigation": "bottom_tabs",
+  "icon_set": "Ionicons",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Use glass effect on the top floating header in the 3D Viewer screen so the model remains visible underneath.",
+      "Use glass on the bottom tab bar.",
+      "Apply subtle blur to the handle area of the tagging bottom sheet."
+    ],
+    "dont's": [
+      "Do not use glass on list rows or input fields.",
+      "Do not stack glass on top of glass in the 3D view."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Modelo 3D",
+      "purpose": "Visor interactivo del modelo BIM a pantalla completa que permite etiquetar objetos in situ.",
+      "states": {
+        "loading": "Spinner centrado con texto 'Cargando modelo BIM...'",
+        "empty": "No aplica para visor 3D.",
+        "error": "Mensaje 'Error al cargar modelo' con botón reintentar."
+      },
+      "layout": "El WebView de Three.js ocupa toda la pantalla (full-bleed). Sobre él, un header flotante de cristal (glass) muestra el título del proyecto y leyenda de colores. Al tocar un objeto en el modelo, se abre un `@gorhom/bottom-sheet` sobrepuesto que muestra el ID del objeto, 4 botones tipo píldora para los estados (Azul, Naranja, Verde, Morado) y un input multilínea de 'Observaciones'. Botón 'Guardar' fijo al fondo del bottom sheet."
+    },
+    {
+      "name": "Lista",
+      "purpose": "Directorio paginado o virtualizado de los 12,275 objetos para búsqueda rápida y filtrado por estado.",
+      "states": {
+        "loading": "Esqueleto de lista estándar.",
+        "empty": "Ilustración de plano arquitectónico con texto 'No se encontraron objetos con ese estado'.",
+        "error": "Texto de error de lectura de datos."
+      },
+      "layout": "Header con barra de búsqueda y un ScrollView horizontal debajo con chips de filtro ('Todos', 'Fabricado', 'Enviado', etc.). Debajo, un FlatList optimizado. Cada fila es una tarjeta limpia con el ID del objeto, un indicador visual (círculo) del color de su estado, y el texto de observación truncado a una línea."
+    },
+    {
+      "name": "Progreso",
+      "purpose": "Panel de estadísticas de progreso de la obra según el estado de las piezas.",
+      "states": {
+        "loading": "Spinner de carga.",
+        "empty": "Sin datos de progreso aún.",
+        "error": "Error al calcular estadísticas."
+      },
+      "layout": "Hero card superior con fondo de imagen abstracta 3D wireframe oscurecida y un indicador circular de avance general. Debajo, un grid de 2 columnas con 4 tarjetas, una por cada estado, utilizando su color respectivo (Azul, Naranja, Verde, Morado) para métricas y barras de conteo de piezas."
+    }
+  ],
+  "images": {
+    "list_empty_state": {
+      "url": "https://images.unsplash.com/photo-1721244654394-36a7bc2da288?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzh8MHwxfHNlYXJjaHwyfHxjb25zdHJ1Y3Rpb24lMjBibHVlcHJpbnQlMjBhcmNoaXRlY3R1cmUlMjBidWlsZGluZyUyMGFic3RyYWN0fGVufDB8fHx8MTc4NDQwMjc2N3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Plano arquitectónico abstracto"
+    },
+    "progress_hero_bg": {
+      "url": "https://images.unsplash.com/photo-1644158767445-79390e879319?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHwyfHwzRCUyMHdpcmVmcmFtZSUyMGFyY2hpdGVjdHVyZSUyMGFic3RyYWN0fGVufDB8fHx8MTc4NDQwMjc2N3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Wireframe de arquitectura 3D"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strict implementation of custom status colors requested by user: Fabricado = #007AFF (Azul), Enviado = #FF9500 (Naranja), Instalado = #34C759 (Verde), Entregado = #AF52DE (Morado). Map these strictly in the UI elements when representing object state.",
+    "Implement a postMessage communication bridge between the Three.js WebView and React Native to catch object selection and trigger the `@gorhom/bottom-sheet`.",
+    "The 3D viewer WebView must be wrapped to occupy `flex: 1` underneath absolute positioned UI (floating header, bottom sheet).",
+    "List View must be heavily optimized using FlatList (or FlashList if available) due to the 12,000+ objects. Do not render heavy components in list rows.",
+    "Ensure the 'Observaciones' field inside the tagging BottomSheet is a multiline TextInput.",
+    "Apply gradient-to-dark scrim over the `progress_hero_bg` image to ensure text overlay readability.",
+    "Everything must be in Spanish as requested in the prompt."
+  ],
+  "haptics": {
+    "events": {
+      "object_tap_in_3d": "impactLight",
+      "status_pill_selected": "impactMedium",
+      "save_button_pressed": "notificationSuccess",
+      "tab_changed": "selection"
+    }
+  }
+}
