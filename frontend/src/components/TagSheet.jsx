@@ -1,7 +1,8 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Box, Camera, Compass, Eye, Loader2, MessageSquare, X, XCircle } from "lucide-react";
+import { Camera, Compass, Eye, Loader2, MessageSquare, X, XCircle } from "lucide-react";
 
 import { api, fileUrl } from "../lib/api";
+import { PanelPreview } from "./panel3d/PanelPreview";
 import { useRole } from "../context/RoleContext";
 import { FACADE_LABELS, NO_STATUS_COLOR, STATUSES, displayName, formatArea, formatDate, formatDims, statusMeta } from "../lib/theme";
 
@@ -75,9 +76,7 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
       <div className="absolute inset-0 bg-black/40" onClick={onClose} data-testid="tag-sheet-backdrop" />
       <div className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col bg-white shadow-2xl sm:rounded-l-2xl overflow-y-auto animate-in slide-in-from-right duration-200">
         <div className="flex items-center gap-3 p-5 pb-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F2F2F7]" data-testid="tag-sheet-mark-badge">
-            <Box size={18} className="text-[#111111]" />
-          </div>
+          <PanelPreview obj={obj} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-base font-bold text-[#111111]" data-testid="tag-sheet-object-name">
               {displayName(obj.name)}

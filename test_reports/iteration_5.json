@@ -1,0 +1,25 @@
+{
+  "summary": "Iteration 5: focused testing on the new Panel 3D preview feature (thumbnail + fullscreen). Backend: added /app/backend/tests/test_mesh_endpoint.py (6 tests, 5 pass + 1 skip because /api/objects only exposes facade objects in current dataset). Verified GET /api/object/mesh for 'C1 C1 [6420986]' returns 2712 vertices (positions len 8136 = 2712*3), positions len%3==0, indices len%3==0, size=[2.99, 5.7187, 0.25] matches /api/object dims. 404 for unknown. Second call is cached (<1s). Bulk 5 objects from list all return 200 with valid geometry. Missing name param -> 422. Regression: 51/51 sequential (backend_test 25 + new_features 9 + photos_and_dedup 6 + bugfixes_iter4 11). Frontend E2E via Playwright on /objects (bim_role=admin in localStorage): searched 'C1 [6420986]' -> object-row appears -> clicked -> tag-sheet opens -> panel-thumbnail-button + panel-thumbnail-canvas visible -> tag-sheet-object-name='C1 [6420986]', tag-sheet-facade='Fachada Norte', dimensions='2.99 × 5.72 m', area='17.10 m²'. Clicked thumbnail -> panel-fullscreen appears with all 8 testids (canvas, code, facade, width='2.99 m', height='5.72 m', area='17.10 m²', hint, close). z-index verified: fullscreen z=60 > tag-sheet z=50. Dragged canvas (rotation) and mouse wheel (zoom) - no JS errors. Close button dismisses fullscreen and TagSheet remains open. Escape key also dismisses fullscreen and TagSheet remains. /progress loads correctly (screenshot shows dashboard with facades/statuses). Only console noise was WebGL 'GPU stall due to ReadPixels' driver warnings (headless GPU, non-blocking; three.js scene works fine).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_mesh_endpoint.py",
+    "/app/test_reports/pytest/iter5_mesh.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py extract_mesh() is well designed: caches by name (bounded to 200 entries with a hard clear when exceeded), centers geometry, applies node world matrix, and returns flat float arrays which are cheap to serialize. Consider LRU rather than full clear at 200 to avoid pathological cache thrash.",
+    "PanelPreview.jsx correctly guards click on !mesh with disabled + falls back to Box icon on fetch error via tag-sheet-mark-badge testid (accessibility preserved).",
+    "PanelFullscreen.jsx correctly listens for Escape and cleans up on unmount; z-index 60 correctly stacks above TagSheet (50).",
+    "Round-trip payload for C1 [6420986] is ~110KB JSON (8136 floats + 16272 indices). For larger panels consider gzipping the mesh endpoint if not already handled by ingress, or delivering as binary (Float32/Uint32) with a custom media type.",
+    "/api/objects appears to only expose facade objects (mark starts with C/L+digit) in current data — 200 items sampled were all facade. Not a bug per PRD but worth documenting since UI navigates via this list."
+  ],
+  "updated_files": ["/app/backend/tests/test_mesh_endpoint.py"],
+  "success_rate": {"backend": "100% (56/56 pass, 1 skipped by env)", "frontend": "100% of exercised flows"},
+  "test_credentials": "Admin: admin2026 (or set localStorage bim_role=admin). Viewer: bim_role=viewer.",
+  "seed_data_creation": "None (used pre-existing panel C1 [6420986]).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend now has 5 suites: backend_test.py (25), test_new_features.py (9), test_photos_and_dedup.py (6), test_bugfixes_iter4.py (11), test_mesh_endpoint.py (6). Run with `-o addopts=''`. For frontend panel3d, set localStorage.bim_role='admin' before navigating to skip the login form. WebGL 'GPU stall' warnings from headless Chromium are benign.",
+  "rca of the issue": "N/A — new feature works as designed."
+}

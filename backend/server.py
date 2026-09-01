@@ -99,6 +99,115 @@ def load_objects():
     return objs
 
 
+import mmap
+import struct
+import numpy as np
+
+GLB: dict = {}
+MESH_CACHE: dict = {}
+COMP_DTYPE = {5120: np.int8, 5121: np.uint8, 5122: np.int16, 5123: np.uint16, 5125: np.uint32, 5126: np.float32}
+TYPE_SIZE = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4, "MAT4": 16}
+
+
+def load_glb_index():
+    """Parse GLB header + JSON chunk once; keep the binary chunk memory-mapped."""
+    f = open(MODEL_PATH, 'rb')
+    mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+    clen, _ = struct.unpack_from('<II', mm, 12)
+    js = json.loads(mm[20:20 + clen])
+    bin_off = 20 + clen + 8
+    parents = {}
+    for i, n in enumerate(js.get('nodes', [])):
+        for c in n.get('children', []):
+            parents[c] = i
+    by_name = {}
+    for i, n in enumerate(js.get('nodes', [])):
+        if n.get('mesh') is not None and n.get('name') and n['name'] not in by_name:
+            by_name[n['name']] = i
+    GLB.update(js=js, mm=mm, bin_off=bin_off, parents=parents, by_name=by_name)
+
+
+def node_local_matrix(n: dict) -> np.ndarray:
+    if n.get('matrix'):
+        return np.array(n['matrix'], dtype=np.float64).reshape(4, 4).T
+    t = n.get('translation', [0, 0, 0])
+    x, y, z, w = n.get('rotation', [0, 0, 0, 1])
+    s = n.get('scale', [1, 1, 1])
+    R = np.array([
+        [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+        [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+        [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)],
+    ])
+    M = np.eye(4)
+    M[:3, :3] = R * np.array(s)[None, :]
+    M[:3, 3] = t
+    return M
+
+
+def node_world_matrix(idx: int) -> np.ndarray:
+    M = node_local_matrix(GLB['js']['nodes'][idx])
+    p = GLB['parents'].get(idx)
+    while p is not None:
+        M = node_local_matrix(GLB['js']['nodes'][p]) @ M
+        p = GLB['parents'].get(p)
+    return M
+
+
+def read_accessor(idx: int) -> np.ndarray:
+    js = GLB['js']
+    acc = js['accessors'][idx]
+    bv = js['bufferViews'][acc['bufferView']]
+    dtype = np.dtype(COMP_DTYPE[acc['componentType']])
+    ncomp = TYPE_SIZE[acc['type']]
+    count = acc['count']
+    start = GLB['bin_off'] + bv.get('byteOffset', 0) + acc.get('byteOffset', 0)
+    stride = bv.get('byteStride') or dtype.itemsize * ncomp
+    if stride == dtype.itemsize * ncomp:
+        arr = np.frombuffer(GLB['mm'], dtype=dtype, count=count * ncomp, offset=start)
+    else:
+        raw = np.frombuffer(GLB['mm'], dtype=np.uint8, count=stride * count, offset=start)
+        arr = np.lib.stride_tricks.as_strided(raw.view(dtype), shape=(count, ncomp), strides=(stride, dtype.itemsize)).copy()
+    return arr.reshape(count, ncomp)
+
+
+def extract_mesh(name: str) -> dict:
+    if name in MESH_CACHE:
+        return MESH_CACHE[name]
+    idx = GLB['by_name'].get(name)
+    if idx is None:
+        raise HTTPException(status_code=404, detail="Geometría no encontrada")
+    js = GLB['js']
+    M = node_world_matrix(idx)
+    positions, indices, base = [], [], 0
+    for prim in js['meshes'][js['nodes'][idx]['mesh']]['primitives']:
+        if prim.get('mode', 4) != 4 or 'POSITION' not in prim['attributes']:
+            continue
+        pos = read_accessor(prim['attributes']['POSITION']).astype(np.float64)
+        pos = pos @ M[:3, :3].T + M[:3, 3]
+        if prim.get('indices') is not None:
+            ind = read_accessor(prim['indices']).reshape(-1).astype(np.int64)
+        else:
+            ind = np.arange(len(pos), dtype=np.int64)
+        positions.append(pos)
+        indices.append(ind + base)
+        base += len(pos)
+    if not positions:
+        raise HTTPException(status_code=404, detail="Geometría vacía")
+    P = np.vstack(positions)
+    center = (P.min(axis=0) + P.max(axis=0)) / 2
+    P = P - center
+    result = {
+        "name": name,
+        "positions": [round(float(v), 4) for v in P.reshape(-1)],
+        "indices": np.concatenate(indices).tolist(),
+        "size": [round(float(v), 4) for v in (P.max(axis=0) - P.min(axis=0))],
+    }
+    if len(MESH_CACHE) > 200:
+        MESH_CACHE.clear()
+    MESH_CACHE[name] = result
+    return result
+
+
 OBJECTS: List[dict] = []
 NAME_SET = set()
 FACADE_NAMES = set()
@@ -122,6 +231,10 @@ async def startup():
     global OBJECTS, NAME_SET, FACADE_NAMES, FACADES, DIMS
     OBJECTS = load_objects()
     NAME_SET = {o['name'] for o in OBJECTS}
+    try:
+        load_glb_index()
+    except Exception as e:
+        logging.error(f"GLB index failed: {e}")
     FACADE_NAMES = {o['name'] for o in OBJECTS if is_facade(o['mark'])}
     if FACADES_PATH.exists():
         with open(FACADES_PATH) as f:
@@ -427,6 +540,16 @@ async def get_object(name: str):
         "history": t.history if t else [],
         "observations": t.observations if t else [],
     }
+
+
+@api_router.get("/object/mesh")
+async def get_object_mesh(name: str):
+    """Triangulated geometry of a single object (world-space, centered) for the panel preview."""
+    if name not in NAME_SET:
+        raise HTTPException(status_code=404, detail="Objeto no encontrado")
+    if not GLB:
+        raise HTTPException(status_code=503, detail="Modelo no indexado")
+    return extract_mesh(name)
 
 
 @api_router.get("/tags")

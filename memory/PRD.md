@@ -33,6 +33,7 @@
 - [x] Superficie en m² en el TagSheet debajo de las dimensiones (`formatArea`: max(sx,sz) × sy, conversión mm→m si >100).
 - [x] Galería de fotos de obra: nueva pestaña "Fotos" (/photos) con grid de tarjetas, chips de fachada, filtro por rango de fechas y lightbox. Endpoint GET /api/photos?facade&from&to (recorre observations con photo, orden fecha desc). Testeado iteration_3 (40/40 backend + frontend OK).
 - [x] Dedup de códigos de objeto en la UI: "C1 C1 [6420986]" se muestra como "C1 [6420986]" (helper `displayName` en frontend: ObjectsPage/TagSheet/ReportsPage/Viewer banner/PhotosPage; `display_name` en backend solo para exports PDF/Excel). La API mantiene los nombres originales (claves estables).
+- [x] (1 sep 2026) Miniatura 3D del panel en el TagSheet (sustituye al icono cuadrado): canvas 80×80 con el panel girando (three.js 0.160, gris neutro con aristas). Al pulsarla → pantalla completa (`PanelFullscreen`, z-60) con OrbitControls (gira solo hasta interactuar; arrastrar/rueda/pinza), cabecera con Código del panel, Fachada, Ancho, Alto y Superficie m²; cierre con botón o Escape. Backend: `GET /api/object/mesh?name=` extrae la geometría del nodo del GLB (JSON chunk indexado al arranque + mmap del binario, transformación mundo por cadena de padres, centrado, cache 200 items). Componentes en `src/components/panel3d/`. Testeado iteration_5 (backend 51/51 + 6 nuevos, frontend OK).
 
 ## Backlog priorizado
 - P2: autorización real en endpoints de escritura (hoy la verificación admin es solo client-side).

@@ -27,6 +27,7 @@ export const api = {
       `/objects?search=${encodeURIComponent(p.search || "")}&status=${p.status || "all"}&facade=${p.facade || "all"}&skip=${p.skip || 0}&limit=${p.limit || 50}`
     ),
   getObject: (name) => req(`/object?name=${encodeURIComponent(name)}`),
+  getObjectMesh: (name) => req(`/object/mesh?name=${encodeURIComponent(name)}`),
   getTags: () => req("/tags"),
   saveTag: (body) => req("/tags", { method: "PUT", body: JSON.stringify(body) }),
   getStats: () => req("/stats"),
