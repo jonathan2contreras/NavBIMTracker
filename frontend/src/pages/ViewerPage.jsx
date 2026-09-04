@@ -196,15 +196,14 @@ export default function ViewerPage() {
 
       {loading && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-white px-8" data-testid="viewer-loading">
-          <div className="mb-10 flex flex-col items-center gap-8" data-testid="viewer-loading-logos">
+          <div className="mb-10 flex flex-col items-center gap-7" data-testid="viewer-loading-logos">
             {LOGOS.map((l) => (
               <img
                 key={l.key}
                 src={l.src}
                 alt={l.key}
                 data-testid={`viewer-loading-logo-${l.key}`}
-                className="h-[68px] max-w-[88%] object-contain sm:h-[84px]"
-                style={{ aspectRatio: l.ratio }}
+                className="h-16 w-56 max-w-[80%] object-contain sm:h-20 sm:w-64"
               />
             ))}
           </div>
