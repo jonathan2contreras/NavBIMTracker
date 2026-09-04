@@ -4,8 +4,7 @@ import { AlertCircle, Hand, Loader2, Tag, X } from "lucide-react";
 
 import { api, VIEWER_URL } from "../lib/api";
 import { TagSheet } from "../components/TagSheet";
-import { NO_STATUS_COLOR, STATUSES, displayName } from "../lib/theme";
-
+import { LOGOS, NO_STATUS_COLOR, STATUSES, displayName } from "../lib/theme";
 const ISO_FILTERS = [
   { key: "all", label: "Todas" },
   ...STATUSES.map((s) => ({ key: s.key, label: s.label, color: s.color, accent: s.accent, textOn: s.textOn })),
@@ -197,6 +196,18 @@ export default function ViewerPage() {
 
       {loading && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-white px-8" data-testid="viewer-loading">
+          <div className="mb-8 flex flex-col items-center gap-5" data-testid="viewer-loading-logos">
+            {LOGOS.map((l) => (
+              <img
+                key={l.key}
+                src={l.src}
+                alt={l.key}
+                data-testid={`viewer-loading-logo-${l.key}`}
+                className="h-[38px] max-w-[70%] object-contain sm:h-[44px]"
+                style={{ aspectRatio: l.ratio }}
+              />
+            ))}
+          </div>
           <Loader2 size={36} className="animate-spin text-[#1C1C1E]" />
           <p className="mt-4 text-base font-bold text-[#111111]">Cargando modelo BIM...</p>
           <p className="mt-1 text-[13px] text-[#8E8E93]">{progress > 0 ? `${progress}%` : "Conectando..."}</p>
