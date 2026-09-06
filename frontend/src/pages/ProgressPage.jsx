@@ -53,6 +53,13 @@ export default function ProgressPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              data-testid="reports-button"
+              onClick={() => navigate("/reports")}
+              className="flex h-9 items-center gap-1.5 rounded-full bg-[#1C1C1E] px-3.5 text-[13px] font-bold text-white transition-opacity hover:opacity-90"
+            >
+              <FileText size={15} /> Reportes
+            </button>
             {role === "admin" && (
               <button
                 data-testid="teams-nav-button"
@@ -62,13 +69,6 @@ export default function ProgressPage() {
                 <Users size={15} /> Equipos
               </button>
             )}
-            <button
-              data-testid="reports-button"
-              onClick={() => navigate("/reports")}
-              className="flex h-9 items-center gap-1.5 rounded-full bg-[#1C1C1E] px-3.5 text-[13px] font-bold text-white transition-opacity hover:opacity-90"
-            >
-              <FileText size={15} /> Reportes
-            </button>
             <button
               data-testid="logout-button"
               onClick={() => {
@@ -134,54 +134,6 @@ export default function ProgressPage() {
                 </div>
               </div>
             </div>
-
-            {!!stats.semana && (
-              <div className="rounded-xl bg-[#F2F2F7] p-4" data-testid="progress-weekly-summary">
-                <div className="mb-3 flex items-center gap-1.5">
-                  <TrendingUp size={15} className="text-[#636366]" />
-                  <p className="text-[11px] font-bold tracking-widest text-[#636366]">INSTALACIONES SEMANALES</p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 rounded-lg bg-white p-3">
-                    <p className="text-[11px] font-semibold text-[#8E8E93]">Esta semana</p>
-                    <p className="mt-1 text-[28px] font-extrabold text-[#34C759]" data-testid="weekly-current-count">
-                      {stats.semana.actual}
-                    </p>
-                    <p className="text-[11px] text-[#8E8E93]">paneles instalados</p>
-                  </div>
-                  <div className="flex flex-col items-center gap-1" data-testid="weekly-delta">
-                    {stats.semana.actual > stats.semana.anterior ? (
-                      <TrendingUp size={22} className="text-[#34C759]" />
-                    ) : stats.semana.actual < stats.semana.anterior ? (
-                      <TrendingDown size={22} className="text-[#FF3B30]" />
-                    ) : (
-                      <Minus size={22} className="text-[#8E8E93]" />
-                    )}
-                    <span
-                      className="text-xs font-bold"
-                      style={{
-                        color:
-                          stats.semana.actual > stats.semana.anterior
-                            ? "#34C759"
-                            : stats.semana.actual < stats.semana.anterior
-                              ? "#FF3B30"
-                              : "#8E8E93",
-                      }}
-                    >
-                      {stats.semana.actual - stats.semana.anterior > 0 ? "+" : ""}
-                      {stats.semana.actual - stats.semana.anterior}
-                    </span>
-                  </div>
-                  <div className="flex-1 rounded-lg bg-white p-3">
-                    <p className="text-[11px] font-semibold text-[#8E8E93]">Semana anterior</p>
-                    <p className="mt-1 text-[28px] font-extrabold text-[#6E6E73]" data-testid="weekly-previous-count">
-                      {stats.semana.anterior}
-                    </p>
-                    <p className="text-[11px] text-[#8E8E93]">paneles instalados</p>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {!!stats.por_fachada && (
               <div className="rounded-xl bg-[#F2F2F7] p-4" data-testid="progress-facade-breakdown">
@@ -353,6 +305,54 @@ export default function ProgressPage() {
                 </div>
               );
             })()}
+
+            {!!stats.semana && (
+              <div className="rounded-xl bg-[#F2F2F7] p-4" data-testid="progress-weekly-summary">
+                <div className="mb-3 flex items-center gap-1.5">
+                  <TrendingUp size={15} className="text-[#636366]" />
+                  <p className="text-[11px] font-bold tracking-widest text-[#636366]">INSTALACIONES SEMANALES</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 rounded-lg bg-white p-3">
+                    <p className="text-[11px] font-semibold text-[#8E8E93]">Esta semana</p>
+                    <p className="mt-1 text-[28px] font-extrabold text-[#34C759]" data-testid="weekly-current-count">
+                      {stats.semana.actual}
+                    </p>
+                    <p className="text-[11px] text-[#8E8E93]">paneles instalados</p>
+                  </div>
+                  <div className="flex flex-col items-center gap-1" data-testid="weekly-delta">
+                    {stats.semana.actual > stats.semana.anterior ? (
+                      <TrendingUp size={22} className="text-[#34C759]" />
+                    ) : stats.semana.actual < stats.semana.anterior ? (
+                      <TrendingDown size={22} className="text-[#FF3B30]" />
+                    ) : (
+                      <Minus size={22} className="text-[#8E8E93]" />
+                    )}
+                    <span
+                      className="text-xs font-bold"
+                      style={{
+                        color:
+                          stats.semana.actual > stats.semana.anterior
+                            ? "#34C759"
+                            : stats.semana.actual < stats.semana.anterior
+                              ? "#FF3B30"
+                              : "#8E8E93",
+                      }}
+                    >
+                      {stats.semana.actual - stats.semana.anterior > 0 ? "+" : ""}
+                      {stats.semana.actual - stats.semana.anterior}
+                    </span>
+                  </div>
+                  <div className="flex-1 rounded-lg bg-white p-3">
+                    <p className="text-[11px] font-semibold text-[#8E8E93]">Semana anterior</p>
+                    <p className="mt-1 text-[28px] font-extrabold text-[#6E6E73]" data-testid="weekly-previous-count">
+                      {stats.semana.anterior}
+                    </p>
+                    <p className="text-[11px] text-[#8E8E93]">paneles instalados</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {teamStats && teamStats.teams.length > 0 && (
               <div className="rounded-xl bg-[#F2F2F7] p-4" data-testid="progress-team-report">
