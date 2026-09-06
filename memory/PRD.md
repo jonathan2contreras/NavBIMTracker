@@ -56,3 +56,8 @@
 - **Reporte por equipos en Progreso** (progress-team-report): por equipo muestra nº instalados, % sobre total de fachada (pct_total) y % sobre lo instalado (pct_instalados), más bucket "Sin equipo".
 - Presentación de inicio (splash) eliminada. Logos de socios movidos a la pantalla de carga del modelo (tamaño uniforme). Logos actualizados con archivos nuevos del usuario.
 - Estado: probado con testing_agent (iteration_6.json) — sin bugs.
+
+
+## 2026-06 — Navegación
+- Botón **Equipos** movido a la barra principal (derecha de Progreso, solo Admin). Ruta `/teams` ahora dentro de `AppLayout`. Eliminado el botón Equipos y el botón "volver" del header de Progreso/Equipos.
+- Pendiente sugerido por usuario anteriormente: mover también **Reportes** a la barra principal (aún en header de Progreso).

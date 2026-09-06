@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, Loader2, Pencil, Plus, Trash2, Users, X } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 
 import { api } from "../lib/api";
 import { useRole } from "../context/RoleContext";
@@ -91,7 +91,7 @@ export default function TeamsPage() {
 
   if (!isAdmin) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white px-6 text-center" data-testid="teams-forbidden">
+      <div className="flex h-full items-center justify-center bg-white px-6 text-center" data-testid="teams-forbidden">
         <div>
           <p className="text-base font-bold text-[#111111]">Acceso restringido</p>
           <p className="mt-1 text-sm text-[#8E8E93]">Solo el administrador puede gestionar equipos.</p>
@@ -107,19 +107,10 @@ export default function TeamsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white" data-testid="teams-screen">
+    <div className="h-full overflow-y-auto bg-white" data-testid="teams-screen">
       <div className="mx-auto w-full max-w-3xl px-4 pb-10 pt-4">
         <div className="flex items-center justify-between pb-2">
-          <div className="flex items-center gap-2">
-            <button
-              data-testid="teams-back-button"
-              onClick={() => navigate("/progress")}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F2F2F7] hover:opacity-70"
-            >
-              <ChevronLeft size={20} className="text-[#636366]" />
-            </button>
-            <h1 className="text-2xl font-extrabold text-[#111111]">Equipos</h1>
-          </div>
+          <h1 className="text-2xl font-extrabold text-[#111111]">Equipos</h1>
           <button
             data-testid="teams-create-button"
             onClick={openCreate}

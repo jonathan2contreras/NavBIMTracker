@@ -60,15 +60,6 @@ export default function ProgressPage() {
             >
               <FileText size={15} /> Reportes
             </button>
-            {role === "admin" && (
-              <button
-                data-testid="teams-nav-button"
-                onClick={() => navigate("/teams")}
-                className="flex h-9 items-center gap-1.5 rounded-full bg-[#F2F2F7] px-3.5 text-[13px] font-bold text-[#1C1C1E] transition-opacity hover:opacity-80"
-              >
-                <Users size={15} /> Equipos
-              </button>
-            )}
             <button
               data-testid="logout-button"
               onClick={() => {

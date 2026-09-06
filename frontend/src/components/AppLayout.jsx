@@ -1,6 +1,6 @@
 import React from "react";
 import { Navigate, NavLink, Outlet } from "react-router-dom";
-import { Box, Camera, List, PieChart } from "lucide-react";
+import { Box, Camera, List, PieChart, Users } from "lucide-react";
 
 import { useRole } from "../context/RoleContext";
 
@@ -9,6 +9,7 @@ const TABS = [
   { to: "/objects", label: "Objetos", icon: List, testId: "tab-objects" },
   { to: "/photos", label: "Fotos", icon: Camera, testId: "tab-photos" },
   { to: "/progress", label: "Progreso", icon: PieChart, testId: "tab-progress" },
+  { to: "/teams", label: "Equipos", icon: Users, testId: "tab-teams", adminOnly: true },
 ];
 
 export default function AppLayout() {
@@ -18,7 +19,7 @@ export default function AppLayout() {
   return (
     <div className="flex h-screen flex-col bg-white">
       <nav className="flex shrink-0 items-center gap-1 border-b border-[#E5E5EA] bg-white px-4 py-2.5 sm:px-6" data-testid="main-nav">
-        {TABS.map((t) => (
+        {TABS.filter((t) => !t.adminOnly || role === "admin").map((t) => (
           <NavLink
             key={t.to}
             to={t.to}

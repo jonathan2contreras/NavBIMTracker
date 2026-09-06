@@ -18,12 +18,6 @@ const GuardedReports = () => {
   return <ReportsPage />;
 };
 
-const GuardedTeams = () => {
-  const { role } = useRole();
-  if (!role) return <Navigate to="/login" replace />;
-  return <TeamsPage />;
-};
-
 function App() {
   return (
     <RoleProvider>
@@ -31,12 +25,12 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/reports" element={<GuardedReports />} />
-          <Route path="/teams" element={<GuardedTeams />} />
           <Route element={<AppLayout />}>
             <Route path="/" element={<ViewerPage />} />
             <Route path="/objects" element={<ObjectsPage />} />
             <Route path="/photos" element={<PhotosPage />} />
             <Route path="/progress" element={<ProgressPage />} />
+            <Route path="/teams" element={<TeamsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
