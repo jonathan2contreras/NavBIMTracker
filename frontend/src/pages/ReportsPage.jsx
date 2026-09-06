@@ -17,6 +17,7 @@ import {
 
 import { api, BACKEND_URL } from "../lib/api";
 import { Chip } from "../components/Chip";
+import { TeamFilter } from "../components/TeamFilter";
 import { FACADE_FILTERS, FACADE_LABELS, NO_STATUS_COLOR, STATUSES, displayName, formatDate, statusMeta } from "../lib/theme";
 
 dayjs.locale("es");
@@ -41,6 +42,8 @@ export default function ReportsPage() {
   const [monthOffset, setMonthOffset] = useState(0);
   const [customStatus, setCustomStatus] = useState("all");
   const [customFacade, setCustomFacade] = useState("all");
+  const [team, setTeam] = useState("all");
+  const [teams, setTeams] = useState([]);
   const [fromText, setFromText] = useState(dayjs().subtract(30, "day").format("YYYY-MM-DD"));
   const [toText, setToText] = useState(dayjs().format("YYYY-MM-DD"));
   const [data, setData] = useState(null);
@@ -48,13 +51,17 @@ export default function ReportsPage() {
   const [error, setError] = useState("");
   const [exporting, setExporting] = useState("");
 
+  useEffect(() => {
+    api.getTeams().then(setTeams).catch(() => setTeams([]));
+  }, []);
+
   const getRange = useCallback(() => {
     if (type === "semanal") {
       const base = dayjs().add(weekOffset, "week");
       const dow = (base.day() + 6) % 7;
       const start = base.subtract(dow, "day");
       const end = start.add(6, "day");
-      return { from: start.format("YYYY-MM-DD"), to: end.format("YYYY-MM-DD"), status: "instalado", facade: "all" };
+      return { from: start.format("YYYY-MM-DD"), to: end.format("YYYY-MM-DD"), status: "instalado", facade: "all", team };
     }
     if (type === "mensual") {
       const m = dayjs().add(monthOffset, "month");
@@ -63,19 +70,20 @@ export default function ReportsPage() {
         to: m.endOf("month").format("YYYY-MM-DD"),
         status: "all",
         facade: "all",
+        team,
       };
     }
-    return { from: fromText.trim(), to: toText.trim(), status: customStatus, facade: customFacade };
-  }, [type, weekOffset, monthOffset, fromText, toText, customStatus, customFacade]);
+    return { from: fromText.trim(), to: toText.trim(), status: customStatus, facade: customFacade, team };
+  }, [type, weekOffset, monthOffset, fromText, toText, customStatus, customFacade, team]);
 
   const exportReport = useCallback(
     (format) => {
-      const { from, to, status, facade } = getRange();
+      const { from, to, status, facade, team: tm } = getRange();
       if (!DATE_RE.test(from) || !DATE_RE.test(to)) {
         setError("Fechas inválidas. Usa el formato AAAA-MM-DD.");
         return;
       }
-      const url = `${BACKEND_URL}/api/report/export?format=${format}&from=${from}&to=${to}&status=${status}&facade=${facade}`;
+      const url = `${BACKEND_URL}/api/report/export?format=${format}&from=${from}&to=${to}&status=${status}&facade=${facade}&team=${tm}`;
       setExporting(format);
       const a = document.createElement("a");
       a.href = url;
@@ -89,7 +97,7 @@ export default function ReportsPage() {
   );
 
   const fetchReport = useCallback(async () => {
-    const { from, to, status, facade } = getRange();
+    const { from, to, status, facade, team: tm } = getRange();
     if (!DATE_RE.test(from) || !DATE_RE.test(to)) {
       setError("Fechas inválidas. Usa el formato AAAA-MM-DD.");
       setData(null);
@@ -99,7 +107,7 @@ export default function ReportsPage() {
     setLoading(true);
     setError("");
     try {
-      setData(await api.getReport({ from, to, status, facade }));
+      setData(await api.getReport({ from, to, status, facade, team: tm }));
     } catch {
       setError("Error al generar el reporte.");
       setData(null);
@@ -111,7 +119,7 @@ export default function ReportsPage() {
   useEffect(() => {
     fetchReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, weekOffset, monthOffset, customStatus, customFacade]);
+  }, [type, weekOffset, monthOffset, customStatus, customFacade, team]);
 
   const rangeLabel = () => {
     if (type === "semanal") {
@@ -266,6 +274,11 @@ export default function ReportsPage() {
             </p>
           )}
 
+          <div className="pb-2">
+            <p className="mb-1 px-4 text-xs font-semibold uppercase tracking-wide text-[#636366]">Equipo</p>
+            <TeamFilter teams={teams} value={team} onChange={setTeam} testPrefix="report-team" className="mb-2 px-4" />
+          </div>
+
           {loading ? (
             <div className="flex justify-center py-16" data-testid="report-loading">
               <Loader2 size={32} className="animate-spin text-[#1C1C1E]" />
@@ -341,6 +354,7 @@ export default function ReportsPage() {
                             <p className="mt-0.5 truncate text-xs font-semibold" style={{ color: meta ? meta.accent : "#8E8E93" }}>
                               {meta ? meta.label : item.status}
                               {item.facade && FACADE_LABELS[item.facade] ? `  ·  ${FACADE_LABELS[item.facade]}` : ""}
+                              {item.team_name ? `  ·  ${item.team_name}` : ""}
                               {item.observation ? `  ·  ${item.observation}` : ""}
                             </p>
                           </div>

@@ -37,7 +37,7 @@ export const api = {
   updateTeam: (id, body) => req(`/teams/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteTeam: (id) => req(`/teams/${id}`, { method: "DELETE" }),
   getReport: (p) =>
-    req(`/report?from=${p.from}&to=${p.to}&status=${p.status || "all"}&facade=${p.facade || "all"}`),
+    req(`/report?from=${p.from}&to=${p.to}&status=${p.status || "all"}&facade=${p.facade || "all"}&team=${p.team || "all"}`),
   getPhotos: (p) =>
     req(`/photos?facade=${p.facade || "all"}&from=${p.from || ""}&to=${p.to || ""}`),
   deletePhoto: (objectName, photo) =>

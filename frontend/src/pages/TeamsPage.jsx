@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Pencil, Plus, Trash2, Users, X } from "lucide-react";
+import { FileText, Grid3X3, Loader2, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 
-import { api } from "../lib/api";
+import { api, BACKEND_URL } from "../lib/api";
 import { useRole } from "../context/RoleContext";
+import { TeamFilter } from "../components/TeamFilter";
 import { FACADE_LABELS, displayName, formatDate } from "../lib/theme";
 
 const emptyForm = { id: null, nombre: "", integrantes: [""] };
@@ -13,6 +14,8 @@ export default function TeamsPage() {
   const { isAdmin } = useRole();
   const [teams, setTeams] = useState([]);
   const [records, setRecords] = useState([]);
+  const [recordFilter, setRecordFilter] = useState("all");
+  const [exporting, setExporting] = useState("");
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -26,9 +29,9 @@ export default function TeamsPage() {
       setTeams(ts);
       const rows = [];
       for (const t of stats.teams) {
-        for (const p of t.paneles) rows.push({ ...p, equipo: t.nombre });
+        for (const p of t.paneles) rows.push({ ...p, equipo: t.nombre, team_id: t.id });
       }
-      for (const p of stats.sin_equipo.paneles) rows.push({ ...p, equipo: null });
+      for (const p of stats.sin_equipo.paneles) rows.push({ ...p, equipo: null, team_id: null });
       rows.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
       setRecords(rows);
     } catch {
@@ -38,6 +41,21 @@ export default function TeamsPage() {
       setLoading(false);
     }
   }, []);
+
+  const filteredRecords = records.filter((r) =>
+    recordFilter === "all" ? true : recordFilter === "none" ? !r.team_id : r.team_id === recordFilter
+  );
+
+  const exportRecords = (format) => {
+    setExporting(format);
+    const a = document.createElement("a");
+    a.href = `${BACKEND_URL}/api/teams/export?format=${format}&team=${recordFilter}`;
+    a.download = `instalaciones_equipos.${format}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => setExporting(""), 800);
+  };
 
   useEffect(() => {
     load();
@@ -169,12 +187,35 @@ export default function TeamsPage() {
             )}
 
             <div className="mt-8">
-              <p className="mb-2 text-[11px] font-bold tracking-widest text-[#636366]">
-                REGISTRO DE INSTALACIONES ({records.length})
-              </p>
-              {records.length === 0 ? (
-                <p className="rounded-xl bg-[#F2F2F7] px-4 py-6 text-center text-xs text-[#8E8E93]">
-                  No hay paneles instalados todavía.
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-[11px] font-bold tracking-widest text-[#636366]" data-testid="install-records-title">
+                  REGISTRO DE INSTALACIONES ({filteredRecords.length})
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    data-testid="teams-export-pdf-button"
+                    onClick={() => exportRecords("pdf")}
+                    disabled={!!exporting}
+                    className="flex h-8 items-center gap-1.5 rounded-full bg-[#C0392B] px-3 text-xs font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-70"
+                  >
+                    {exporting === "pdf" ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
+                    PDF
+                  </button>
+                  <button
+                    data-testid="teams-export-excel-button"
+                    onClick={() => exportRecords("xlsx")}
+                    disabled={!!exporting}
+                    className="flex h-8 items-center gap-1.5 rounded-full bg-[#1E7145] px-3 text-xs font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-70"
+                  >
+                    {exporting === "xlsx" ? <Loader2 size={13} className="animate-spin" /> : <Grid3X3 size={13} />}
+                    Excel
+                  </button>
+                </div>
+              </div>
+              <TeamFilter teams={teams} value={recordFilter} onChange={setRecordFilter} testPrefix="records-team" className="mb-2" />
+              {filteredRecords.length === 0 ? (
+                <p className="rounded-xl bg-[#F2F2F7] px-4 py-6 text-center text-xs text-[#8E8E93]" data-testid="install-records-empty">
+                  {records.length === 0 ? "No hay paneles instalados todavía." : "No hay instalaciones para este equipo."}
                 </p>
               ) : (
                 <div className="overflow-hidden rounded-2xl border border-[#E5E5EA]" data-testid="install-records">
@@ -184,7 +225,7 @@ export default function TeamsPage() {
                     <span className="text-right">Fecha</span>
                   </div>
                   <div className="max-h-[420px] overflow-y-auto">
-                    {records.map((r, i) => (
+                    {filteredRecords.map((r, i) => (
                       <div
                         key={`${r.object_name}-${i}`}
                         data-testid={`install-record-${i}`}

@@ -61,3 +61,8 @@
 ## 2026-06 — Navegación
 - Botón **Equipos** movido a la barra principal (derecha de Progreso, solo Admin). Ruta `/teams` ahora dentro de `AppLayout`. Eliminado el botón Equipos y el botón "volver" del header de Progreso/Equipos.
 - Pendiente sugerido por usuario anteriormente: mover también **Reportes** a la barra principal (aún en header de Progreso).
+
+## 2026-06 — Filtros por equipo y exportación
+- Reportes: nuevo filtro por Equipo (Todos / cada equipo / Sin equipo) visible en semanal, mensual y filtros; `GET /api/report` y `/api/report/export` aceptan `team=all|none|<id>`; columna Equipo añadida en PDF/Excel.
+- Equipos › Registro de instalaciones: chips de filtro por equipo + botones exportar PDF/Excel (`GET /api/teams/export?format=pdf|xlsx&team=...`).
+- Componente compartido `components/TeamFilter.jsx`.

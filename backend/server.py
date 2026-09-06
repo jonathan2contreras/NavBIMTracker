@@ -815,12 +815,29 @@ async def get_stats():
     }
 
 
-async def build_report(from_: str, to: str, status: str, facade: str = "all"):
+async def fetch_team_names() -> dict:
+    names = {}
+    async for doc in db.teams.find():
+        tm = Team.from_mongo(doc)
+        names[tm.id] = tm.nombre
+    return names
+
+
+def team_filter_label(team: str, team_names: dict) -> str:
+    if team == "all":
+        return "Todos"
+    if team == "none":
+        return "Sin equipo"
+    return team_names.get(team, "Equipo")
+
+
+async def build_report(from_: str, to: str, status: str, facade: str = "all", team: str = "all"):
     if status != "all" and status not in VALID_STATUSES:
         raise HTTPException(status_code=422, detail="Estado inválido")
     if facade != "all" and facade not in VALID_FACADES:
         raise HTTPException(status_code=422, detail="Fachada inválida")
     tags = await fetch_tags_map()
+    team_names = await fetch_team_names()
     counts = {s: 0 for s in STATUS_ORDER}
     items = []
     for name, t in tags.items():
@@ -837,6 +854,11 @@ async def build_report(from_: str, to: str, status: str, facade: str = "all"):
                 continue
             if status != "all" and ev_status != status:
                 continue
+            tid = ev.get("team_id")
+            if team == "none" and (ev_status != "instalado" or (tid and tid in team_names)):
+                continue
+            if team not in ("all", "none") and tid != team:
+                continue
             items.append({
                 "name": name,
                 "mark": name.split(' ')[0],
@@ -844,11 +866,13 @@ async def build_report(from_: str, to: str, status: str, facade: str = "all"):
                 "status": ev_status,
                 "date": ev.get("date"),
                 "observation": t.observation,
+                "team_id": tid,
+                "team_name": team_names.get(tid) or ev.get("team_name") or None,
             })
             if ev_status in counts:
                 counts[ev_status] += 1
     items.sort(key=lambda x: x["date"] or "", reverse=True)
-    return {"total": len(items), "counts": counts, "items": items}
+    return {"total": len(items), "counts": counts, "items": items, "team_label": team_filter_label(team, team_names)}
 
 
 @api_router.get("/report")
@@ -857,28 +881,18 @@ async def get_report(
     to: str = "",
     status: str = "all",
     facade: str = "all",
+    team: str = "all",
 ):
     """Report of status-change events (from tag history) within a date range.
-    from/to: YYYY-MM-DD (inclusive). status: 'all' or a status key. facade: 'all'|norte|sur|este|oeste."""
-    return await build_report(from_, to, status, facade)
+    from/to: YYYY-MM-DD (inclusive). status: 'all' or a status key. facade: 'all'|norte|sur|este|oeste.
+    team: 'all' | 'none' | team_id."""
+    return await build_report(from_, to, status, facade, team)
 
 
-def make_pdf(data: dict, from_: str, to: str, status: str, facade: str = "all") -> bytes:
-    from io import BytesIO
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib import colors as rl_colors
-    from reportlab.lib.units import mm
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+def _pdf_letterhead(elems, mm):
+    from reportlab.platypus import Table, TableStyle, Spacer
     from reportlab.platypus import Image as RLImage
-    from reportlab.lib.styles import getSampleStyleSheet
 
-    buf = BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, title="Reporte BIMTracker",
-                            leftMargin=15 * mm, rightMargin=15 * mm,
-                            topMargin=15 * mm, bottomMargin=15 * mm)
-    styles = getSampleStyleSheet()
-    elems = []
-    # Corporate letterhead with the 3 logos
     logo_defs = [
         ("logo_fiberkret.png", 1600 / 533),
         ("logo_entrepisos.png", 921 / 371),
@@ -892,9 +906,48 @@ def make_pdf(data: dict, from_: str, to: str, status: str, facade: str = "all") 
         letterhead.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
         elems.append(letterhead)
         elems.append(Spacer(1, 5 * mm))
+
+
+def _pdf_table_style(rl_colors, TableStyle):
+    return TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), rl_colors.HexColor("#1C1C1E")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), rl_colors.white),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("GRID", (0, 0), (-1, -1), 0.4, rl_colors.HexColor("#C7C7CC")),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [rl_colors.white, rl_colors.HexColor("#F2F2F7")]),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ])
+
+
+def _xlsx_header(ws, header, Font, PatternFill):
+    ws.append(header)
+    hrow = ws.max_row
+    for col in range(1, len(header) + 1):
+        c = ws.cell(row=hrow, column=col)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill(start_color="1C1C1E", end_color="1C1C1E", fill_type="solid")
+
+
+def make_pdf(data: dict, from_: str, to: str, status: str, facade: str = "all", team: str = "all") -> bytes:
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors as rl_colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, title="Reporte BIMTracker",
+                            leftMargin=15 * mm, rightMargin=15 * mm,
+                            topMargin=15 * mm, bottomMargin=15 * mm)
+    styles = getSampleStyleSheet()
+    elems = []
+    _pdf_letterhead(elems, mm)
     period = f"Período: {from_} a {to} &nbsp;·&nbsp; Etiqueta: {STATUS_LABELS.get(status, status)}"
     if facade != "all":
         period += f" &nbsp;·&nbsp; Fachada: {FACADE_LABELS.get(facade, facade)}"
+    if team != "all":
+        period += f" &nbsp;·&nbsp; Equipo: {data.get('team_label', '')}"
     elems += [
         Paragraph("Reporte BIMTracker — Fachada", styles["Title"]),
         Paragraph(period, styles["Normal"]),
@@ -907,30 +960,24 @@ def make_pdf(data: dict, from_: str, to: str, status: str, facade: str = "all") 
     if summary:
         elems.append(Paragraph(summary, styles["Normal"]))
     elems.append(Spacer(1, 5 * mm))
-    rows = [["Pieza", "Estado", "Fachada", "Fecha", "Observación"]]
+    rows = [["Pieza", "Estado", "Fachada", "Equipo", "Fecha", "Observación"]]
     for it in data["items"]:
         rows.append([
             Paragraph(display_name(it["name"]), styles["BodyText"]),
             STATUS_LABELS.get(it["status"], it["status"]),
             FACADE_LABELS.get(it.get("facade") or "", "—"),
+            Paragraph(it.get("team_name") or "—", styles["BodyText"]),
             (it["date"] or "")[:10],
             Paragraph(it["observation"] or "", styles["BodyText"]),
         ])
-    table = Table(rows, colWidths=[52 * mm, 22 * mm, 20 * mm, 22 * mm, 54 * mm], repeatRows=1)
-    table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), rl_colors.HexColor("#1C1C1E")),
-        ("TEXTCOLOR", (0, 0), (-1, 0), rl_colors.white),
-        ("FONTSIZE", (0, 0), (-1, -1), 8),
-        ("GRID", (0, 0), (-1, -1), 0.4, rl_colors.HexColor("#C7C7CC")),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [rl_colors.white, rl_colors.HexColor("#F2F2F7")]),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-    ]))
+    table = Table(rows, colWidths=[46 * mm, 20 * mm, 18 * mm, 24 * mm, 20 * mm, 42 * mm], repeatRows=1)
+    table.setStyle(_pdf_table_style(rl_colors, TableStyle))
     elems.append(table)
     doc.build(elems)
     return buf.getvalue()
 
 
-def make_xlsx(data: dict, from_: str, to: str, status: str, facade: str = "all") -> bytes:
+def make_xlsx(data: dict, from_: str, to: str, status: str, facade: str = "all", team: str = "all") -> bytes:
     from io import BytesIO
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill
@@ -943,26 +990,23 @@ def make_xlsx(data: dict, from_: str, to: str, status: str, facade: str = "all")
     row2 = [f"Período: {from_} a {to}", f"Etiqueta: {STATUS_LABELS.get(status, status)}"]
     if facade != "all":
         row2.append(f"Fachada: {FACADE_LABELS.get(facade, facade)}")
+    if team != "all":
+        row2.append(f"Equipo: {data.get('team_label', '')}")
     ws.append(row2)
     ws.append([f"Total de movimientos: {data['total']}"])
     ws.append([f"{STATUS_LABELS[k]}: {v}" for k, v in data["counts"].items() if v])
     ws.append([])
-    header = ["Pieza", "Estado", "Fachada", "Fecha", "Observación"]
-    ws.append(header)
-    hrow = ws.max_row
-    for col in range(1, len(header) + 1):
-        c = ws.cell(row=hrow, column=col)
-        c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill(start_color="1C1C1E", end_color="1C1C1E", fill_type="solid")
+    _xlsx_header(ws, ["Pieza", "Estado", "Fachada", "Equipo", "Fecha", "Observación"], Font, PatternFill)
     for it in data["items"]:
         ws.append([
             display_name(it["name"]),
             STATUS_LABELS.get(it["status"], it["status"]),
             FACADE_LABELS.get(it.get("facade") or "", "—"),
+            it.get("team_name") or "—",
             (it["date"] or "")[:10],
             it["observation"] or "",
         ])
-    for col, width in zip("ABCDE", [40, 16, 12, 14, 50]):
+    for col, width in zip("ABCDEF", [40, 16, 12, 20, 14, 50]):
         ws.column_dimensions[col].width = width
     buf = BytesIO()
     wb.save(buf)
@@ -976,17 +1020,116 @@ async def export_report(
     to: str = "",
     status: str = "all",
     facade: str = "all",
+    team: str = "all",
 ):
     if format not in ("pdf", "xlsx"):
         raise HTTPException(status_code=422, detail="Formato inválido (pdf|xlsx)")
-    data = await build_report(from_, to, status, facade)
+    data = await build_report(from_, to, status, facade, team)
     if format == "pdf":
-        content = make_pdf(data, from_, to, status, facade)
+        content = make_pdf(data, from_, to, status, facade, team)
         media = "application/pdf"
     else:
-        content = make_xlsx(data, from_, to, status, facade)
+        content = make_xlsx(data, from_, to, status, facade, team)
         media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     filename = f"reporte_{from_}_{to}.{format}"
+    return Response(
+        content=content,
+        media_type=media,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _install_records(stats: dict, team: str) -> list:
+    rows = []
+    for tm in stats["teams"]:
+        if team not in ("all", tm["id"]):
+            continue
+        rows += [{**p, "equipo": tm["nombre"]} for p in tm["paneles"]]
+    if team in ("all", "none"):
+        rows += [{**p, "equipo": None} for p in stats["sin_equipo"]["paneles"]]
+    rows.sort(key=lambda x: x["date"] or "", reverse=True)
+    return rows
+
+
+def make_teams_pdf(rows: list, label: str) -> bytes:
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors as rl_colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, title="Registro de instalaciones",
+                            leftMargin=15 * mm, rightMargin=15 * mm,
+                            topMargin=15 * mm, bottomMargin=15 * mm)
+    styles = getSampleStyleSheet()
+    elems = []
+    _pdf_letterhead(elems, mm)
+    elems += [
+        Paragraph("Registro de instalaciones por equipo", styles["Title"]),
+        Paragraph(f"Equipo: {label} &nbsp;·&nbsp; Generado: {datetime.now(timezone.utc).date().isoformat()}", styles["Normal"]),
+        Spacer(1, 4 * mm),
+        Paragraph(f"Total de paneles instalados: {len(rows)}", styles["Heading3"]),
+        Spacer(1, 5 * mm),
+    ]
+    table_rows = [["Equipo", "Código panel", "Fachada", "Fecha"]]
+    for r in rows:
+        table_rows.append([
+            Paragraph(r["equipo"] or "Sin equipo", styles["BodyText"]),
+            Paragraph(display_name(r["object_name"]), styles["BodyText"]),
+            FACADE_LABELS.get(r.get("facade") or "", "—"),
+            r["date"] or "",
+        ])
+    table = Table(table_rows, colWidths=[45 * mm, 75 * mm, 25 * mm, 25 * mm], repeatRows=1)
+    table.setStyle(_pdf_table_style(rl_colors, TableStyle))
+    elems.append(table)
+    doc.build(elems)
+    return buf.getvalue()
+
+
+def make_teams_xlsx(rows: list, label: str) -> bytes:
+    from io import BytesIO
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Instalaciones"
+    ws.append(["Registro de instalaciones por equipo"])
+    ws["A1"].font = Font(bold=True, size=14)
+    ws.append([f"Equipo: {label}", f"Generado: {datetime.now(timezone.utc).date().isoformat()}"])
+    ws.append([f"Total de paneles instalados: {len(rows)}"])
+    ws.append([])
+    _xlsx_header(ws, ["Equipo", "Código panel", "Fachada", "Fecha"], Font, PatternFill)
+    for r in rows:
+        ws.append([
+            r["equipo"] or "Sin equipo",
+            display_name(r["object_name"]),
+            FACADE_LABELS.get(r.get("facade") or "", "—"),
+            r["date"] or "",
+        ])
+    for col, width in zip("ABCD", [24, 40, 12, 14]):
+        ws.column_dimensions[col].width = width
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+@api_router.get("/teams/export")
+async def export_teams(format: str = "xlsx", team: str = "all"):
+    if format not in ("pdf", "xlsx"):
+        raise HTTPException(status_code=422, detail="Formato inválido (pdf|xlsx)")
+    stats = await teams_stats()
+    rows = _install_records(stats, team)
+    label = team_filter_label(team, {t["id"]: t["nombre"] for t in stats["teams"]})
+    if format == "pdf":
+        content = make_teams_pdf(rows, label)
+        media = "application/pdf"
+    else:
+        content = make_teams_xlsx(rows, label)
+        media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    filename = f"instalaciones_equipos.{format}"
     return Response(
         content=content,
         media_type=media,
