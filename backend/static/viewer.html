@@ -111,6 +111,8 @@ let pendingTags = null;
 let pendingFocus = null;
 let isolation = 'all';
 let sceneMaxDim = 1;
+let sceneCenter = new THREE.Vector3();
+let sceneSize = new THREE.Vector3();
 let loaded = false;
 
 function isVisibleFor(name) {
@@ -195,6 +197,20 @@ window.viewerAPI = {
   focusObject(name) {
     if (!loaded) { pendingFocus = name; return; }
     focusByName(name);
+  },
+  orientTo(facade) {
+    if (!loaded) return;
+    const c = sceneCenter;
+    const dist = sceneMaxDim * 1.15;
+    const y = c.y + sceneSize.y * 0.18;
+    let pos;
+    if (facade === 'norte') pos = new THREE.Vector3(c.x, y, c.z - dist);
+    else if (facade === 'sur') pos = new THREE.Vector3(c.x, y, c.z + dist);
+    else if (facade === 'este') pos = new THREE.Vector3(c.x + dist, y, c.z);
+    else if (facade === 'oeste') pos = new THREE.Vector3(c.x - dist, y, c.z);
+    else return;
+    if (selectedName) { const prev = selectedName; selectedName = null; refreshMesh(prev); }
+    animateCamera(pos, c.clone());
   },
 };
 
@@ -290,6 +306,8 @@ loader.load('/api/model',
     const center = box.getCenter(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z);
     sceneMaxDim = maxDim;
+    sceneCenter.copy(center);
+    sceneSize.copy(size);
     camera.near = Math.max(maxDim / 1000, 0.01);
     camera.far = maxDim * 20;
     camera.updateProjectionMatrix();

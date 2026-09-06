@@ -47,3 +47,12 @@
 - Logos en `/app/frontend/public/logo_*.png` y en `/app/backend/static/` (membrete PDF).
 - El visor tarda 30-90s en cargar (GLB 57MB) con barra de progreso.
 - Suite de tests backend: `/app/backend/tests/backend_test.py`.
+
+## Actualización — Junio 2026 (iteración 6)
+- **Brújula interactiva** en la barra de leyenda del visor 3D: orienta el modelo hacia cada fachada (N/S/E/O) vía comando `orientTo` (viewer.html). Testids: compass-button, compass-panel, compass-{norte,sur,este,oeste}.
+- **Equipos de instalación**: nueva colección `teams` {nombre, integrantes[]}. Endpoints /api/teams (GET/POST), /api/teams/{id} (PUT/DELETE), /api/teams/stats.
+  - Página /teams (solo Admin): crear/editar/borrar equipos + tabla de registro de instalaciones (equipo, código panel, fecha). Acceso desde Progreso → botón "Equipos" (teams-nav-button).
+  - Al marcar un panel como **Instalado** en TagSheet, es **obligatorio** elegir equipo; se guarda team_id/team_name en el evento 'instalado' del history del tag.
+- **Reporte por equipos en Progreso** (progress-team-report): por equipo muestra nº instalados, % sobre total de fachada (pct_total) y % sobre lo instalado (pct_instalados), más bucket "Sin equipo".
+- Presentación de inicio (splash) eliminada. Logos de socios movidos a la pantalla de carga del modelo (tamaño uniforme). Logos actualizados con archivos nuevos del usuario.
+- Estado: probado con testing_agent (iteration_6.json) — sin bugs.

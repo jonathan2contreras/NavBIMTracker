@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Camera, Compass, Eye, Loader2, MessageSquare, X, XCircle } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Camera, Compass, Eye, Loader2, MessageSquare, Users, X, XCircle } from "lucide-react";
 
 import { api, fileUrl } from "../lib/api";
 import { PanelPreview } from "./panel3d/PanelPreview";
@@ -17,9 +17,27 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const initialTeamId = useMemo(() => {
+    const inst = (obj.history || []).filter((h) => h.status === "instalado");
+    return inst.length ? inst[inst.length - 1].team_id || "" : "";
+  }, [obj]);
+  const [teams, setTeams] = useState([]);
+  const [teamsLoading, setTeamsLoading] = useState(false);
+  const [teamId, setTeamId] = useState(initialTeamId);
+
+  useEffect(() => {
+    if (readOnly) return;
+    setTeamsLoading(true);
+    api
+      .getTeams()
+      .then(setTeams)
+      .catch(() => setTeams([]))
+      .finally(() => setTeamsLoading(false));
+  }, [readOnly]);
+
   const timeline = useMemo(() => {
     const hist = [...(obj.history || [])].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-    const groups = hist.map((h) => ({ status: h.status, date: h.date, obs: [] }));
+    const groups = hist.map((h) => ({ status: h.status, date: h.date, team: h.team_name, obs: [] }));
     const pre = { status: null, date: "", obs: [] };
     for (const ob of obj.observations || []) {
       let target = pre;
@@ -48,6 +66,10 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
   }, [photoPreview]);
 
   const handleSave = useCallback(async () => {
+    if (status === "instalado" && !teamId) {
+      setError("Selecciona el equipo que instaló el panel.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -57,7 +79,15 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
         const up = await api.uploadPhoto(photoFile);
         photoPath = up.path;
       }
-      await api.saveTag({ object_name: obj.name, status, observation: newObs, photo: photoPath });
+      const team = status === "instalado" ? teams.find((t) => t.id === teamId) : null;
+      await api.saveTag({
+        object_name: obj.name,
+        status,
+        observation: newObs,
+        photo: photoPath,
+        team_id: team ? team.id : null,
+        team_name: team ? team.nombre : null,
+      });
       const prevList = obj.observations || [];
       const latest = newObs || (prevList.length ? prevList[prevList.length - 1].text : "") || "";
       onSaved?.({ ...obj, status, observation: latest });
@@ -66,7 +96,7 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
       setError("No se pudo guardar. Inténtalo de nuevo.");
       setSaving(false);
     }
-  }, [obj, status, observation, photoFile, onSaved, onClose]);
+  }, [obj, status, observation, photoFile, teamId, teams, onSaved, onClose]);
 
   const dims = formatDims(obj.dimensions);
   const area = formatArea(obj.dimensions);
@@ -139,6 +169,50 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
             </button>
           )}
 
+          {status === "instalado" && !readOnly && (
+            <div className="mt-4" data-testid="team-selector">
+              <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[#636366]">
+                <Users size={14} /> Equipo que instaló <span className="text-[#FF3B30]">*</span>
+              </p>
+              {teamsLoading ? (
+                <div className="flex h-11 items-center gap-2 rounded-xl bg-[#F2F2F7] px-3 text-[13px] text-[#8E8E93]">
+                  <Loader2 size={14} className="animate-spin" /> Cargando equipos...
+                </div>
+              ) : teams.length === 0 ? (
+                <div className="rounded-xl bg-[#FFF4E5] px-3 py-3 text-[13px] text-[#8A5A00]" data-testid="team-empty-note">
+                  No hay equipos creados. Crea uno en la sección <span className="font-bold">Equipos</span> (Progreso →
+                  Equipos) para poder registrar la instalación.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {teams.map((t) => {
+                    const selected = teamId === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        data-testid={`team-option-${t.id}`}
+                        onClick={() => {
+                          setTeamId(t.id);
+                          if (error) setError("");
+                        }}
+                        className={`flex flex-col items-start rounded-xl border-[1.5px] px-3 py-2.5 text-left transition-colors ${
+                          selected ? "border-[#34C759] bg-[#E8F8EE]" : "border-[#E5E5EA] bg-white hover:bg-[#F2F2F7]"
+                        }`}
+                      >
+                        <span className="text-[13px] font-bold text-[#111111]">{t.nombre}</span>
+                        {t.integrantes?.length > 0 && (
+                          <span className="mt-0.5 line-clamp-1 text-[11px] text-[#8E8E93]">
+                            {t.integrantes.join(", ")}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {!readOnly && (
             <>
               <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-[#636366]">Notas</p>
@@ -200,6 +274,11 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
                         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: meta ? meta.accent : NO_STATUS_COLOR }} />
                         <span className="flex-1 text-[13px] font-semibold text-[#111111]">
                           {meta ? meta.label : "Sin estado"}
+                          {!!g.team && (
+                            <span className="ml-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-[#34C759]">
+                              · <Users size={11} /> {g.team}
+                            </span>
+                          )}
                         </span>
                         <span className="text-xs text-[#8E8E93]">{formatDate(g.date)}</span>
                       </div>

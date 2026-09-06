@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AlertCircle, Hand, Loader2, Tag, X } from "lucide-react";
+import { AlertCircle, Compass, Hand, Loader2, Tag, X } from "lucide-react";
 
 import { api, VIEWER_URL } from "../lib/api";
 import { TagSheet } from "../components/TagSheet";
@@ -19,6 +19,7 @@ export default function ViewerPage() {
   const [hintVisible, setHintVisible] = useState(true);
   const [viewerKey, setViewerKey] = useState(0);
   const [isoFilter, setIsoFilter] = useState("all");
+  const [compassOpen, setCompassOpen] = useState(false);
   const [focusedName, setFocusedName] = useState(null);
   const [sheetObj, setSheetObj] = useState(null);
   const loadedRef = useRef(false);
@@ -98,6 +99,14 @@ export default function ViewerPage() {
     });
   };
 
+  const orientTo = useCallback(
+    (facade) => {
+      sendCmd("orientTo", [facade]);
+      setCompassOpen(false);
+    },
+    [sendCmd]
+  );
+
   const handleSaved = useCallback(
     (obj) => sendCmd("setTag", [obj.name, obj.status]),
     [sendCmd]
@@ -133,8 +142,8 @@ export default function ViewerPage() {
       />
 
       <div className="pointer-events-none absolute left-4 right-4 top-3">
-        <div className="pointer-events-auto rounded-2xl bg-white/55 px-4 py-3 backdrop-blur-xl">
-          <div className="flex gap-2 overflow-x-auto pb-0.5" data-testid="status-legend">
+        <div className="pointer-events-auto flex items-center gap-2 rounded-2xl bg-white/55 px-4 py-3 backdrop-blur-xl">
+          <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5" data-testid="status-legend">
             {ISO_FILTERS.map((f) => {
               const selected = isoFilter === f.key;
               return (
@@ -160,6 +169,61 @@ export default function ViewerPage() {
                 </button>
               );
             })}
+          </div>
+
+          <div className="relative shrink-0">
+            <button
+              data-testid="compass-button"
+              onClick={() => setCompassOpen((v) => !v)}
+              title="Orientar hacia una fachada"
+              className={`flex h-8 w-8 items-center justify-center rounded-full border transition-colors ${
+                compassOpen ? "border-[#1C1C1E] bg-[#1C1C1E] text-white" : "border-[#C7C7CC] bg-white/70 text-[#1C1C1E]"
+              }`}
+            >
+              <Compass size={16} />
+            </button>
+            {compassOpen && (
+              <div
+                className="absolute right-0 top-10 z-10 grid grid-cols-3 gap-1 rounded-2xl bg-white p-2 shadow-xl"
+                data-testid="compass-panel"
+              >
+                <span />
+                <button
+                  data-testid="compass-norte"
+                  onClick={() => orientTo("norte")}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F2F2F7] text-sm font-extrabold text-[#111111] hover:bg-[#1C1C1E] hover:text-white"
+                >
+                  N
+                </button>
+                <span />
+                <button
+                  data-testid="compass-oeste"
+                  onClick={() => orientTo("oeste")}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F2F2F7] text-sm font-extrabold text-[#111111] hover:bg-[#1C1C1E] hover:text-white"
+                >
+                  O
+                </button>
+                <div className="flex h-9 w-9 items-center justify-center">
+                  <Compass size={18} className="text-[#8E8E93]" />
+                </div>
+                <button
+                  data-testid="compass-este"
+                  onClick={() => orientTo("este")}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F2F2F7] text-sm font-extrabold text-[#111111] hover:bg-[#1C1C1E] hover:text-white"
+                >
+                  E
+                </button>
+                <span />
+                <button
+                  data-testid="compass-sur"
+                  onClick={() => orientTo("sur")}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F2F2F7] text-sm font-extrabold text-[#111111] hover:bg-[#1C1C1E] hover:text-white"
+                >
+                  S
+                </button>
+                <span />
+              </div>
+            )}
           </div>
         </div>
       </div>

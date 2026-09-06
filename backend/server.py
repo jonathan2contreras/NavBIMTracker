@@ -11,6 +11,7 @@ import logging
 import requests
 from pathlib import Path
 import bcrypt
+from bson import ObjectId
 from pydantic import BaseModel, Field, ConfigDict, BeforeValidator
 from typing import List, Optional, Annotated
 from datetime import datetime, timezone, timedelta
@@ -297,6 +298,19 @@ class TagUpsert(BaseModel):
     status: Optional[str] = None
     observation: str = ""
     photo: Optional[str] = None
+    team_id: Optional[str] = None
+    team_name: Optional[str] = None
+
+
+class Team(BaseDocument):
+    nombre: str
+    integrantes: List[str] = []
+    created_at: str = ""
+
+
+class TeamUpsert(BaseModel):
+    nombre: str
+    integrantes: List[str] = []
 
 
 class AdminVerifyRequest(BaseModel):
@@ -607,6 +621,16 @@ async def upsert_tag(payload: TagUpsert):
     history = list(prev.history) if prev else []
     if payload.status and (not prev or prev.status != payload.status):
         history.append({"status": payload.status, "date": now})
+    # attach installing team to the latest 'instalado' history event
+    if payload.status == "instalado":
+        team_id = (payload.team_id or "").strip() or None
+        team_name = (payload.team_name or "").strip() or None
+        if team_id:
+            for ev in reversed(history):
+                if ev.get("status") == "instalado":
+                    ev["team_id"] = team_id
+                    ev["team_name"] = team_name
+                    break
     observations = list(prev.observations) if prev else []
     if (obs or photo) and (photo or not observations or observations[-1].get("text") != obs):
         entry = {"text": obs, "date": now}
@@ -635,6 +659,107 @@ async def upsert_tag(payload: TagUpsert):
         "created_at": tag.created_at,
         "history": tag.history,
         "observations": tag.observations,
+    }
+
+
+# ---------- Teams (installation crews) ----------
+
+def _team_out(t: Team) -> dict:
+    return {"id": t.id, "nombre": t.nombre, "integrantes": t.integrantes}
+
+
+@api_router.get("/teams")
+async def list_teams():
+    out = []
+    async for doc in db.teams.find().sort("nombre", 1):
+        out.append(_team_out(Team.from_mongo(doc)))
+    return out
+
+
+@api_router.post("/teams")
+async def create_team(payload: TeamUpsert):
+    nombre = payload.nombre.strip()
+    if not nombre:
+        raise HTTPException(status_code=422, detail="El nombre o número del equipo es obligatorio")
+    integrantes = [i.strip() for i in payload.integrantes if i.strip()]
+    now = datetime.now(timezone.utc).isoformat()
+    team = Team(nombre=nombre, integrantes=integrantes, created_at=now)
+    res = await db.teams.insert_one(team.to_mongo())
+    return {"id": str(res.inserted_id), "nombre": nombre, "integrantes": integrantes}
+
+
+@api_router.put("/teams/{team_id}")
+async def update_team(team_id: str, payload: TeamUpsert):
+    nombre = payload.nombre.strip()
+    if not nombre:
+        raise HTTPException(status_code=422, detail="El nombre o número del equipo es obligatorio")
+    integrantes = [i.strip() for i in payload.integrantes if i.strip()]
+    try:
+        oid = ObjectId(team_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    res = await db.teams.update_one({"_id": oid}, {"$set": {"nombre": nombre, "integrantes": integrantes}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    return {"id": team_id, "nombre": nombre, "integrantes": integrantes}
+
+
+@api_router.delete("/teams/{team_id}")
+async def delete_team(team_id: str):
+    try:
+        oid = ObjectId(team_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Equipo no encontrado")
+    await db.teams.delete_one({"_id": oid})
+    return {"deleted": True, "id": team_id}
+
+
+@api_router.get("/teams/stats")
+async def teams_stats():
+    tags = await fetch_tags_map()
+    total_facade = len(FACADE_NAMES)
+    teams = {}
+    async for doc in db.teams.find().sort("nombre", 1):
+        tm = Team.from_mongo(doc)
+        teams[tm.id] = {"id": tm.id, "nombre": tm.nombre, "integrantes": tm.integrantes, "paneles": []}
+    sin_equipo = []
+    total_installed = 0
+    for name, t in tags.items():
+        if name not in FACADE_NAMES or t.status != "instalado":
+            continue
+        inst = [ev for ev in (t.history or []) if ev.get("status") == "instalado"]
+        if not inst:
+            continue
+        total_installed += 1
+        ev = inst[-1]
+        rec = {
+            "object_name": name,
+            "mark": name.split(" ")[0],
+            "facade": FACADES.get(name),
+            "date": (ev.get("date") or "")[:10],
+        }
+        tid = ev.get("team_id")
+        if tid and tid in teams:
+            teams[tid]["paneles"].append(rec)
+        else:
+            sin_equipo.append(rec)
+    result = []
+    for tm in teams.values():
+        cnt = len(tm["paneles"])
+        tm["paneles"].sort(key=lambda x: x["date"] or "", reverse=True)
+        result.append({
+            **tm,
+            "instalados": cnt,
+            "pct_total": (cnt / total_facade * 100) if total_facade else 0,
+            "pct_instalados": (cnt / total_installed * 100) if total_installed else 0,
+        })
+    result.sort(key=lambda x: x["instalados"], reverse=True)
+    sin_equipo.sort(key=lambda x: x["date"] or "", reverse=True)
+    return {
+        "total_facade": total_facade,
+        "total_installed": total_installed,
+        "teams": result,
+        "sin_equipo": {"instalados": len(sin_equipo), "paneles": sin_equipo},
     }
 
 

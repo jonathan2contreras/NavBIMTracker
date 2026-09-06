@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Compass, Factory, FileText, Loader2, LogOut, Minus, TrendingDown, TrendingUp } from "lucide-react";
+import { Compass, Factory, FileText, Loader2, LogOut, Minus, TrendingDown, TrendingUp, Users } from "lucide-react";
 
 import { api } from "../lib/api";
 import { useRole } from "../context/RoleContext";
@@ -19,13 +19,16 @@ export default function ProgressPage() {
   const navigate = useNavigate();
   const { role, logout } = useRole();
   const [stats, setStats] = useState(null);
+  const [teamStats, setTeamStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   const fetchStats = useCallback(async () => {
     try {
       setError(false);
-      setStats(await api.getStats());
+      const [s, ts] = await Promise.all([api.getStats(), api.getTeamsStats().catch(() => null)]);
+      setStats(s);
+      setTeamStats(ts);
     } catch {
       setError(true);
     } finally {
@@ -50,6 +53,15 @@ export default function ProgressPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {role === "admin" && (
+              <button
+                data-testid="teams-nav-button"
+                onClick={() => navigate("/teams")}
+                className="flex h-9 items-center gap-1.5 rounded-full bg-[#F2F2F7] px-3.5 text-[13px] font-bold text-[#1C1C1E] transition-opacity hover:opacity-80"
+              >
+                <Users size={15} /> Equipos
+              </button>
+            )}
             <button
               data-testid="reports-button"
               onClick={() => navigate("/reports")}
@@ -341,6 +353,47 @@ export default function ProgressPage() {
                 </div>
               );
             })()}
+
+            {teamStats && teamStats.teams.length > 0 && (
+              <div className="rounded-xl bg-[#F2F2F7] p-4" data-testid="progress-team-report">
+                <div className="mb-3 flex items-center gap-1.5">
+                  <Users size={15} className="text-[#636366]" />
+                  <p className="text-[11px] font-bold tracking-widest text-[#636366]">INSTALACIÓN POR EQUIPOS</p>
+                </div>
+                <div className="flex flex-col gap-2.5">
+                  {teamStats.teams.map((t) => (
+                    <div key={t.id} className="rounded-lg bg-white p-3" data-testid={`team-report-${t.id}`}>
+                      <div className="flex items-center justify-between">
+                        <span className="truncate text-[14px] font-bold text-[#111111]">{t.nombre}</span>
+                        <span className="text-[13px] font-extrabold text-[#34C759]">
+                          {t.instalados.toLocaleString("es-ES")} paneles
+                        </span>
+                      </div>
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#E5E5EA]">
+                        <div
+                          className="h-full rounded-full bg-[#34C759]"
+                          style={{ width: `${Math.max(t.pct_instalados, t.instalados > 0 ? 2 : 0)}%` }}
+                        />
+                      </div>
+                      <div className="mt-1.5 flex items-center justify-between text-[11px] text-[#8E8E93]">
+                        <span>{pctLabelOf(t.pct_total)} de la fachada total</span>
+                        <span>{pctLabelOf(t.pct_instalados)} de lo instalado</span>
+                      </div>
+                    </div>
+                  ))}
+                  {teamStats.sin_equipo.instalados > 0 && (
+                    <div className="rounded-lg bg-white p-3" data-testid="team-report-sin-equipo">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[14px] font-bold text-[#8E8E93]">Sin equipo</span>
+                        <span className="text-[13px] font-extrabold text-[#8E8E93]">
+                          {teamStats.sin_equipo.instalados.toLocaleString("es-ES")} paneles
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

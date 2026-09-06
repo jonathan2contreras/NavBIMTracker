@@ -1,0 +1,25 @@
+{
+  "summary": "Iteration 6: tested Teams CRUD, mandatory team on Instalado in TagSheet, Progress team report, and Compass control. Backend: added /app/backend/tests/test_teams_iter6.py (9 tests, all pass). Full regression 65 pass + 1 skip. Frontend E2E: /teams admin loads, create+edit+delete team via UI works, install-records table visible, viewer role shows Acceso restringido. In TagSheet on a fresh facade panel (C1 C1 [6421217]): clicking Instalado reveals team-selector with '*' required marker; Save without team shows tag-sheet-error 'Selecciona el equipo que instaló el panel.'; selecting team option closes error, saving succeeds and API verifies team_id/team_name attached to the latest instalado history event. On /progress the progress-team-report section appears with the seeded team once it has an install, and the Equipos nav button (teams-nav-button) is present. Compass button (compass-button) opens compass-panel with N/S/E/O buttons and clicking Norte sent orientTo without page or console errors. Data cleanup executed after each UI scenario.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_teams_iter6.py",
+    "/app/test_reports/pytest/iter6_teams.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py teams_stats() correctly filters to FACADE_NAMES only and uses last instalado history event, but pct_total is computed over total_facade (533) while UI copy on the Progress page should clarify whether the % is over 'total fachada' vs 'total instalado' - both are exposed as pct_total and pct_instalados which is good and matches the PRD.",
+    "TagSheet.jsx preloads teamId from the object's latest instalado history event; if an admin re-saves an already-installed panel with the same team the required-team check passes silently. Consider re-prompting when the user explicitly changes status or when the previously stored team_id no longer exists in the teams list (currently no such stale guard).",
+    "Teams delete endpoint returns 200 even if the id does not exist (no 404), unlike update. Not a bug per PRD but inconsistent with update_team; consider returning 404 when matched_count==0 for symmetry.",
+    "Team.nombre has no uniqueness constraint. Creating two teams with the same name is allowed and both appear in the selector. If the PRD implies teams are identified by name/number, add a unique index or a soft duplicate check.",
+    "Compass panel closes on any orientation click and does not visually indicate the currently selected facade (no active state). Minor UX polish."
+  ],
+  "updated_files": ["/app/backend/tests/test_teams_iter6.py"],
+  "success_rate": {"backend": "100% (65/65 pass, 1 skipped by env)", "frontend": "100% of exercised flows"},
+  "test_credentials": "Admin: password admin2026 (or localStorage.bim_role='admin'). Viewer: bim_role='viewer'.",
+  "seed_data_creation": "Created and deleted TEST_UI_* teams during tests. Marked C1 C1 [6421217] as instalado via UI then cleared. Backend regression created/cleaned TEST_ITER6_* teams. Any pre-existing 'Equipo 1' and installs from manual testing were untouched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Suites: backend_test.py (25), test_new_features.py (9), test_photos_and_dedup.py (6), test_bugfixes_iter4.py (11), test_mesh_endpoint.py (6, 1 skip), test_teams_iter6.py (9). Run with `-o addopts=''`. Testids added in iter6: team-selector, team-option-<id>, team-empty-note, tag-sheet-error, teams-screen/-forbidden/-back-button/-create-button/-loading/-empty/-list, team-row/-edit/-delete-<id>, install-records, install-record-<i>, team-form-modal/-name/-add-member/-member-<i>/-error/-save, team-delete-modal/-confirm, teams-nav-button, progress-team-report, compass-button/-panel/-norte/-sur/-este/-oeste. For UI team save on Instalado, use a facade object with no prior team_id in history (else the required-team check is silently satisfied by preloaded teamId).",
+  "rca of the issue": "N/A - all features work as designed."
+}

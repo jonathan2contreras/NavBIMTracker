@@ -10,11 +10,18 @@ import ObjectsPage from "@/pages/ObjectsPage";
 import PhotosPage from "@/pages/PhotosPage";
 import ProgressPage from "@/pages/ProgressPage";
 import ReportsPage from "@/pages/ReportsPage";
+import TeamsPage from "@/pages/TeamsPage";
 
 const GuardedReports = () => {
   const { role } = useRole();
   if (!role) return <Navigate to="/login" replace />;
   return <ReportsPage />;
+};
+
+const GuardedTeams = () => {
+  const { role } = useRole();
+  if (!role) return <Navigate to="/login" replace />;
+  return <TeamsPage />;
 };
 
 function App() {
@@ -24,6 +31,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/reports" element={<GuardedReports />} />
+          <Route path="/teams" element={<GuardedTeams />} />
           <Route element={<AppLayout />}>
             <Route path="/" element={<ViewerPage />} />
             <Route path="/objects" element={<ObjectsPage />} />

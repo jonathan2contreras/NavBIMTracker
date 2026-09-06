@@ -31,6 +31,11 @@ export const api = {
   getTags: () => req("/tags"),
   saveTag: (body) => req("/tags", { method: "PUT", body: JSON.stringify(body) }),
   getStats: () => req("/stats"),
+  getTeams: () => req("/teams"),
+  getTeamsStats: () => req("/teams/stats"),
+  createTeam: (body) => req("/teams", { method: "POST", body: JSON.stringify(body) }),
+  updateTeam: (id, body) => req(`/teams/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteTeam: (id) => req(`/teams/${id}`, { method: "DELETE" }),
   getReport: (p) =>
     req(`/report?from=${p.from}&to=${p.to}&status=${p.status || "all"}&facade=${p.facade || "all"}`),
   getPhotos: (p) =>
