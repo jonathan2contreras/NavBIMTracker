@@ -66,3 +66,6 @@
 - Reportes: nuevo filtro por Equipo (Todos / cada equipo / Sin equipo) visible en semanal, mensual y filtros; `GET /api/report` y `/api/report/export` aceptan `team=all|none|<id>`; columna Equipo añadida en PDF/Excel.
 - Equipos › Registro de instalaciones: chips de filtro por equipo + botones exportar PDF/Excel (`GET /api/teams/export?format=pdf|xlsx&team=...`).
 - Componente compartido `components/TeamFilter.jsx`.
+
+## 2026-06 — Pantalla de carga
+- Logos anclados al 8% de la altura (`pt-[8vh]`), spinner y texto justo debajo (ViewerPage.jsx).

@@ -259,7 +259,7 @@ export default function ViewerPage() {
       )}
 
       {loading && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white px-8" data-testid="viewer-loading">
+        <div className="absolute inset-0 flex flex-col items-center bg-white px-8 pt-[8vh]" data-testid="viewer-loading">
           <div className="mb-10 flex flex-col items-center gap-7" data-testid="viewer-loading-logos">
             {LOGOS.map((l) => (
               <img
