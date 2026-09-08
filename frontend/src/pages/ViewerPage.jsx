@@ -22,6 +22,7 @@ export default function ViewerPage() {
   const [compassOpen, setCompassOpen] = useState(false);
   const [focusedName, setFocusedName] = useState(null);
   const [sheetObj, setSheetObj] = useState(null);
+  const [hover, setHover] = useState(null);
   const loadedRef = useRef(false);
   const pendingFocusRef = useRef(null);
   const [searchParams] = useSearchParams();
@@ -84,7 +85,10 @@ export default function ViewerPage() {
         setError(msg.message || "Error al cargar el modelo");
       } else if (msg.type === "select") {
         setHintVisible(false);
+        setHover(null);
         openObject(msg.name);
+      } else if (msg.type === "hover") {
+        setHover(msg.name ? { name: msg.name, x: msg.x, y: msg.y } : null);
       }
     };
     window.addEventListener("message", handler);
@@ -140,6 +144,17 @@ export default function ViewerPage() {
         className="block h-full w-full border-0"
         data-testid="model-viewer-iframe"
       />
+
+      {hover && !sheetObj && (
+        <div
+          className="pointer-events-none absolute z-20 flex items-center gap-1.5 rounded-full bg-[#1C1C1E]/90 px-3 py-1.5 shadow-lg backdrop-blur"
+          style={{ left: hover.x + 14, top: hover.y + 14 }}
+          data-testid="hover-tooltip"
+        >
+          <span className="h-2 w-2 rounded-full bg-[#007AFF]" />
+          <span className="whitespace-nowrap text-[12px] font-bold text-white">{displayName(hover.name)}</span>
+        </div>
+      )}
 
       <div className="pointer-events-none absolute left-4 right-4 top-3">
         <div className="pointer-events-auto flex items-center gap-2 rounded-2xl bg-white/55 px-4 py-3 backdrop-blur-xl">

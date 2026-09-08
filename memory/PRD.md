@@ -69,3 +69,7 @@
 
 ## 2026-06 — Pantalla de carga
 - Logos anclados al 8% de la altura (`pt-[8vh]`), spinner y texto justo debajo (ViewerPage.jsx).
+
+## 2026-06 — Hover en visor 3D
+- viewer.html: pointermove (solo mouse) con raycast -> mensaje `hover` {name,x,y}; pieza bajo el cursor con brillo suave + contorno azul (`hoverEdgeMat`).
+- ViewerPage.jsx: tooltip flotante junto al cursor con `displayName` (data-testid hover-tooltip). Sin hover en táctil.

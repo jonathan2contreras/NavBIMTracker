@@ -123,16 +123,26 @@ function isVisibleFor(name) {
 function refreshMesh(name) {
   const m = meshesByName[name];
   if (!m) return;
-  m.material = matFor(tags[name] || null, name === selectedName);
+  m.material = matFor(tags[name] || null, name === selectedName || name === hoverName);
+  setOutline(m, name === hoverName);
   m.visible = isVisibleFor(name);
   renderer.shadowMap.needsUpdate = true;
   requestRender();
 }
 
+// Hover highlight: soft glow + blue outline
+const hoverEdgeMat = new THREE.LineBasicMaterial({ color: 0x007AFF, linewidth: 2 });
+let hoverName = null;
+function setOutline(mesh, hovered) {
+  for (const ch of mesh.children) {
+    if (ch.isLineSegments) ch.material = hovered ? hoverEdgeMat : edgeMat;
+  }
+}
+
 function applyAll() {
   for (const mesh of meshList) {
     const key = mesh.userData.orig || mesh.name;
-    mesh.material = matFor(tags[key] || null, key === selectedName);
+    mesh.material = matFor(tags[key] || null, key === selectedName || key === hoverName);
     mesh.visible = isVisibleFor(key);
   }
   renderer.shadowMap.needsUpdate = true;
@@ -427,6 +437,45 @@ canvas.addEventListener('pointerup', (e) => {
     send({ type: 'select', name });
   }
 });
+
+// Hover (mouse only): find piece under cursor, highlight it and report its code
+function pickAt(x, y) {
+  pointer.x = (x / window.innerWidth) * 2 - 1;
+  pointer.y = -(y / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(meshList.filter((m) => m.visible), false);
+  return hits.length > 0 ? (hits[0].object.userData.orig || hits[0].object.name) : null;
+}
+
+function setHover(name, x, y) {
+  if (name === hoverName) {
+    if (name) send({ type: 'hover', name, x, y });
+    return;
+  }
+  const prev = hoverName;
+  hoverName = name;
+  if (prev) refreshMesh(prev);
+  if (name) refreshMesh(name);
+  send({ type: 'hover', name, x, y });
+}
+
+let hoverPending = null;
+let hoverScheduled = false;
+canvas.addEventListener('pointermove', (e) => {
+  if (e.pointerType !== 'mouse' || !loaded) return;
+  if (e.buttons) { if (hoverName) setHover(null, 0, 0); return; }
+  hoverPending = { x: e.clientX, y: e.clientY };
+  if (hoverScheduled) return;
+  hoverScheduled = true;
+  requestAnimationFrame(() => {
+    hoverScheduled = false;
+    const p = hoverPending;
+    if (!p) return;
+    setHover(pickAt(p.x, p.y), p.x, p.y);
+  });
+});
+canvas.addEventListener('pointerleave', () => { if (hoverName) setHover(null, 0, 0); });
+canvas.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse' && hoverName) setHover(null, 0, 0); });
 
 send({ type: 'ready' });
 </script>
