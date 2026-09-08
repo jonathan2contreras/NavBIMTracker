@@ -3,6 +3,7 @@ import { Navigate, NavLink, Outlet } from "react-router-dom";
 import { Box, Camera, List, PieChart, Users } from "lucide-react";
 
 import { useRole } from "../context/RoleContext";
+import { SyncToast } from "./SyncToast";
 
 const TABS = [
   { to: "/", label: "Modelo 3D", icon: Box, end: true, testId: "tab-viewer" },
@@ -42,6 +43,7 @@ export default function AppLayout() {
       <main className="min-h-0 flex-1">
         <Outlet />
       </main>
+      <SyncToast />
     </div>
   );
 }

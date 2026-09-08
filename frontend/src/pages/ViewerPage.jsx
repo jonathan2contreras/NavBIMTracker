@@ -4,6 +4,7 @@ import { AlertCircle, Compass, Hand, Loader2, Tag, X } from "lucide-react";
 
 import { api, VIEWER_URL } from "../lib/api";
 import { TagSheet } from "../components/TagSheet";
+import { notifySync } from "../components/SyncToast";
 import { LOGOS, NO_STATUS_COLOR, STATUSES, displayName } from "../lib/theme";
 const ISO_FILTERS = [
   { key: "all", label: "Todas" },
@@ -42,7 +43,7 @@ export default function ViewerPage() {
     else pendingFocusRef.current = focus;
   }, [focus, t, sendCmd]);
 
-  const lastMapRef = useRef("");
+  const lastMapRef = useRef(null);
   const loadTags = useCallback(async () => {
     try {
       const tags = await api.getTags();
@@ -51,9 +52,12 @@ export default function ViewerPage() {
         if (tg.status) map[name] = tg.status;
       }
       const key = JSON.stringify(map);
-      if (key === lastMapRef.current) return;
-      lastMapRef.current = key;
+      const prevKey = lastMapRef.current === null ? null : JSON.stringify(lastMapRef.current);
+      if (key === prevKey) return;
+      const isFirst = lastMapRef.current === null;
+      lastMapRef.current = map;
       sendCmd("applyTags", [map]);
+      if (!isFirst) notifySync();
     } catch {}
   }, [sendCmd]);
 
@@ -124,7 +128,13 @@ export default function ViewerPage() {
   );
 
   const handleSaved = useCallback(
-    (obj) => sendCmd("setTag", [obj.name, obj.status]),
+    (obj) => {
+      if (lastMapRef.current) {
+        if (obj.status) lastMapRef.current[obj.name] = obj.status;
+        else delete lastMapRef.current[obj.name];
+      }
+      sendCmd("setTag", [obj.name, obj.status]);
+    },
     [sendCmd]
   );
 

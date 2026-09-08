@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Compass, Factory, FileText, Loader2, LogOut, Minus, TrendingDown, TrendingUp, Users } from "lucide-react";
 
 import { api } from "../lib/api";
 import { useRole } from "../context/RoleContext";
+import { notifySync } from "../components/SyncToast";
 import { LOGOS, NO_STATUS_COLOR, STATUSES } from "../lib/theme";
 
 const FACADE_ORDER = [
@@ -22,11 +23,15 @@ export default function ProgressPage() {
   const [teamStats, setTeamStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const lastStatsRef = useRef(null);
 
   const fetchStats = useCallback(async (silent = false) => {
     try {
       if (!silent) setError(false);
       const [s, ts] = await Promise.all([api.getStats(), api.getTeamsStats().catch(() => null)]);
+      const key = JSON.stringify({ s, ts });
+      if (silent && lastStatsRef.current !== null && key !== lastStatsRef.current) notifySync();
+      lastStatsRef.current = key;
       setStats(s);
       setTeamStats(ts);
       setError(false);

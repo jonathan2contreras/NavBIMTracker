@@ -5,6 +5,7 @@ import { Box, ChevronRight, Compass, Loader2, Search, XCircle } from "lucide-rea
 import { api } from "../lib/api";
 import { TagSheet } from "../components/TagSheet";
 import { Chip } from "../components/Chip";
+import { notifySync } from "../components/SyncToast";
 import { FACADE_FILTERS, FACADE_LABELS, NO_STATUS_COLOR, STATUSES, displayName, statusMeta } from "../lib/theme";
 
 const PAGE_SIZE = 50;
@@ -74,15 +75,18 @@ export default function ObjectsPage() {
       if (document.visibilityState !== "visible") return;
       try {
         const tags = await api.getTags();
+        let changed = false;
         setItems((prev) =>
           prev.map((it) => {
             const tg = tags[it.name];
             const status = tg ? tg.status : null;
             const observation = tg ? tg.observation || "" : "";
             if (it.status === status && it.observation === observation) return it;
+            changed = true;
             return { ...it, status, observation };
           })
         );
+        if (changed) notifySync();
       } catch {}
     }, 5000);
     return () => clearInterval(id);
