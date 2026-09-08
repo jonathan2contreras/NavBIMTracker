@@ -80,3 +80,8 @@
 - ObjectsPage.jsx: setInterval 5s hace `getTags` y fusiona status/observation en los objetos ya cargados (no resetea el scroll infinito ni los filtros).
 - ProgressPage.jsx: `fetchStats(silent)` refresca stats+teamStats cada 5s sin spinner y sin pintar el error en fallos transitorios.
 - Todos pausan cuando `document.visibilityState !== 'visible'`. Verificado con screenshot: fila Objetos pasó de Enviado→Instalado sola tras cambio remoto por API.
+
+## 2026-06 — Aviso de cambios (SyncToast)
+- `components/SyncToast.jsx`: pastilla flotante arriba-centro ("Actualizado por otro usuario", icono azul refresh), animación `syncIn` (index.css), auto-cierre ~3.2s. Helper `notifySync(msg)` dispara evento window `bim-sync`. Montado en `AppLayout`.
+- Se dispara solo cuando el sondeo detecta un cambio REMOTO (no propio): ViewerPage compara mapa de tags y actualiza `lastMapRef` también en `handleSaved` para no avisar de cambios propios; ObjectsPage avisa si algún item difiere (handleSaved actualiza items en local → sin aviso propio); ProgressPage compara JSON de stats.
+- testids: sync-toast. Aprobado por el usuario (OK).
