@@ -73,3 +73,10 @@
 ## 2026-06 — Hover en visor 3D
 - viewer.html: pointermove (solo mouse) con raycast -> mensaje `hover` {name,x,y}; pieza bajo el cursor con brillo suave + contorno azul (`hoverEdgeMat`).
 - ViewerPage.jsx: tooltip flotante junto al cursor con `displayName` (data-testid hover-tooltip). Sin hover en táctil.
+
+## 2026-06 — Sincronización multiusuario (polling)
+- Elección del usuario: sondeo cada 5s, aplicado en Visor 3D + Objetos + Progreso.
+- ViewerPage.jsx: `loadTags` cachea el último mapa (lastMapRef, compara JSON) y solo hace `applyTags` si cambió; setInterval 5s reaplica estados al modelo cuando está cargado, sin error y con la pestaña visible.
+- ObjectsPage.jsx: setInterval 5s hace `getTags` y fusiona status/observation en los objetos ya cargados (no resetea el scroll infinito ni los filtros).
+- ProgressPage.jsx: `fetchStats(silent)` refresca stats+teamStats cada 5s sin spinner y sin pintar el error en fallos transitorios.
+- Todos pausan cuando `document.visibilityState !== 'visible'`. Verificado con screenshot: fila Objetos pasó de Enviado→Instalado sola tras cambio remoto por API.

@@ -23,14 +23,15 @@ export default function ProgressPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const fetchStats = useCallback(async () => {
+  const fetchStats = useCallback(async (silent = false) => {
     try {
-      setError(false);
+      if (!silent) setError(false);
       const [s, ts] = await Promise.all([api.getStats(), api.getTeamsStats().catch(() => null)]);
       setStats(s);
       setTeamStats(ts);
+      setError(false);
     } catch {
-      setError(true);
+      if (!silent) setError(true);
     } finally {
       setLoading(false);
     }
@@ -38,6 +39,14 @@ export default function ProgressPage() {
 
   useEffect(() => {
     fetchStats();
+  }, [fetchStats]);
+
+  // Sincronización multiusuario: refresca el dashboard cada 5s sin parpadeos.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") fetchStats(true);
+    }, 5000);
+    return () => clearInterval(id);
   }, [fetchStats]);
 
   const pctRaw = stats && stats.total > 0 ? (stats.etiquetados / stats.total) * 100 : 0;

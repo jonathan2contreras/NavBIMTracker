@@ -42,6 +42,7 @@ export default function ViewerPage() {
     else pendingFocusRef.current = focus;
   }, [focus, t, sendCmd]);
 
+  const lastMapRef = useRef("");
   const loadTags = useCallback(async () => {
     try {
       const tags = await api.getTags();
@@ -49,9 +50,20 @@ export default function ViewerPage() {
       for (const [name, tg] of Object.entries(tags)) {
         if (tg.status) map[name] = tg.status;
       }
+      const key = JSON.stringify(map);
+      if (key === lastMapRef.current) return;
+      lastMapRef.current = key;
       sendCmd("applyTags", [map]);
     } catch {}
   }, [sendCmd]);
+
+  // Sincronización multiusuario: refresca los estados del modelo cada 5s.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (loadedRef.current && !error && document.visibilityState === "visible") loadTags();
+    }, 5000);
+    return () => clearInterval(id);
+  }, [loadTags, error]);
 
   const openObject = useCallback((name) => {
     api

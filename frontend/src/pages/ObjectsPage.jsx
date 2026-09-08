@@ -68,6 +68,26 @@ export default function ObjectsPage() {
     fetchPage(true, []);
   }, [fetchPage]);
 
+  // Sincronización multiusuario: refresca los estados de los objetos visibles cada 5s.
+  useEffect(() => {
+    const id = setInterval(async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const tags = await api.getTags();
+        setItems((prev) =>
+          prev.map((it) => {
+            const tg = tags[it.name];
+            const status = tg ? tg.status : null;
+            const observation = tg ? tg.observation || "" : "";
+            if (it.status === status && it.observation === observation) return it;
+            return { ...it, status, observation };
+          })
+        );
+      } catch {}
+    }, 5000);
+    return () => clearInterval(id);
+  }, []);
+
   const loadMoreRef = useRef(() => {});
   loadMoreRef.current = () => {
     if (loading || loadingMore || items.length >= total) return;
