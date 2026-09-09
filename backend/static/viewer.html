@@ -59,9 +59,22 @@ let renderQueued = false;
 function requestRender() {
   if (renderQueued) return;
   renderQueued = true;
-  requestAnimationFrame(() => { renderQueued = false; controls.update(); renderer.render(scene, camera); });
+  requestAnimationFrame(() => { renderQueued = false; controls.update(); renderer.render(scene, camera); sendHeading(); });
 }
 controls.addEventListener('change', requestRender);
+
+// Compass heading: rotation (deg) to apply to a north-up rosette so N marks true north.
+let lastHeading = null;
+function sendHeading() {
+  const fx = controls.target.x - camera.position.x;
+  const fz = controls.target.z - camera.position.z;
+  const forwardAngle = Math.atan2(fx, -fz) * 180 / Math.PI; // clockwise from north (-Z)
+  const rot = -forwardAngle;
+  if (lastHeading === null || Math.abs(rot - lastHeading) > 0.3) {
+    lastHeading = rot;
+    send({ type: 'heading', angle: rot });
+  }
+}
 
 // damping needs a few frames after an actual drag (not after taps)
 let dampingFrames = 0;
@@ -161,6 +174,7 @@ function animateCamera(toPos, toTarget) {
     controls.target.lerpVectors(fromTarget, toTarget, e);
     controls.update();
     renderer.render(scene, camera);
+    sendHeading();
     if (k < 1) requestAnimationFrame(step);
   }
   step();
@@ -325,6 +339,7 @@ loader.load('/api/model',
     controls.target.copy(center);
     controls.maxDistance = maxDim * 5;
     controls.update();
+    sendHeading();
     addCompassLabels(box, size, center, maxDim);
 
     // Fixed sun light with shadows fitted to the model bounds

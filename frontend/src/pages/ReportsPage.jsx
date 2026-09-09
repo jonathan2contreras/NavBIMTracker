@@ -11,11 +11,14 @@ import {
   Compass,
   FileText,
   Grid3X3,
+  Layers,
   Loader2,
+  RotateCcw,
   SlidersHorizontal,
 } from "lucide-react";
 
 import { api, BACKEND_URL } from "../lib/api";
+import { useRole } from "../context/RoleContext";
 import { Chip } from "../components/Chip";
 import { TeamFilter } from "../components/TeamFilter";
 import { FACADE_FILTERS, FACADE_LABELS, NO_STATUS_COLOR, STATUSES, displayName, formatDate, statusMeta } from "../lib/theme";
@@ -37,6 +40,8 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export default function ReportsPage() {
   const navigate = useNavigate();
+  const { role } = useRole();
+  const isAdmin = role === "admin";
   const [type, setType] = useState("semanal");
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
@@ -50,9 +55,57 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [exporting, setExporting] = useState("");
+  const [settings, setSettings] = useState(null);
+  const [totalInput, setTotalInput] = useState("");
+  const [savingTotal, setSavingTotal] = useState(false);
+  const [totalMsg, setTotalMsg] = useState("");
 
   useEffect(() => {
     api.getTeams().then(setTeams).catch(() => setTeams([]));
+    api
+      .getSettings()
+      .then((s) => {
+        setSettings(s);
+        setTotalInput(String(s.total_facade_effective));
+      })
+      .catch(() => {});
+  }, []);
+
+  const saveTotal = useCallback(async () => {
+    const n = parseInt(totalInput, 10);
+    if (!Number.isInteger(n) || n <= 0) {
+      setTotalMsg("Introduce un número entero mayor que 0.");
+      return;
+    }
+    setSavingTotal(true);
+    setTotalMsg("");
+    try {
+      const s = await api.updateSettings({ total_facade_override: n });
+      setSettings(s);
+      setTotalInput(String(s.total_facade_effective));
+      setTotalMsg("Guardado. El dashboard usará este total.");
+      setTimeout(() => setTotalMsg(""), 3000);
+    } catch {
+      setTotalMsg("Error al guardar el total.");
+    } finally {
+      setSavingTotal(false);
+    }
+  }, [totalInput]);
+
+  const resetTotal = useCallback(async () => {
+    setSavingTotal(true);
+    setTotalMsg("");
+    try {
+      const s = await api.updateSettings({ total_facade_override: null });
+      setSettings(s);
+      setTotalInput(String(s.total_facade_effective));
+      setTotalMsg(`Restablecido al conteo del modelo (${s.total_facade_default}).`);
+      setTimeout(() => setTotalMsg(""), 3000);
+    } catch {
+      setTotalMsg("Error al restablecer.");
+    } finally {
+      setSavingTotal(false);
+    }
   }, []);
 
   const getRange = useCallback(() => {
@@ -155,6 +208,64 @@ export default function ReportsPage() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto pb-8">
+          {settings && (
+            <div className="mx-4 mt-2 rounded-xl border border-[#E5E5EA] bg-[#F2F2F7] p-4" data-testid="total-facade-card">
+              <div className="mb-2 flex items-center gap-1.5">
+                <Layers size={15} className="text-[#636366]" />
+                <p className="text-[11px] font-bold tracking-widest text-[#636366]">TOTAL DE PANELES DE FACHADA</p>
+              </div>
+              <p className="mb-3 text-[12px] leading-snug text-[#8E8E93]">
+                Número usado como base en el dashboard y en toda la aplicación para calcular el % de avance.
+                {settings.total_facade_override
+                  ? " (valor manual)"
+                  : ` (conteo automático del modelo: ${settings.total_facade_default})`}
+              </p>
+              {isAdmin ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <input
+                      data-testid="total-facade-input"
+                      type="number"
+                      min="1"
+                      value={totalInput}
+                      onChange={(e) => setTotalInput(e.target.value)}
+                      className="h-11 w-32 rounded-xl border border-[#E5E5EA] bg-white px-3 text-[15px] font-bold text-[#111111] outline-none focus:border-[#1C1C1E]"
+                    />
+                    <button
+                      data-testid="total-facade-save"
+                      onClick={saveTotal}
+                      disabled={savingTotal}
+                      className="flex h-11 items-center gap-1.5 rounded-xl bg-[#1C1C1E] px-4 text-[13px] font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                    >
+                      {savingTotal ? <Loader2 size={15} className="animate-spin" /> : null}
+                      Guardar
+                    </button>
+                    {settings.total_facade_override && (
+                      <button
+                        data-testid="total-facade-reset"
+                        onClick={resetTotal}
+                        disabled={savingTotal}
+                        title="Restablecer al conteo del modelo"
+                        className="flex h-11 items-center gap-1.5 rounded-xl border border-[#E5E5EA] bg-white px-3 text-[13px] font-bold text-[#636366] transition-opacity hover:opacity-70 disabled:opacity-60"
+                      >
+                        <RotateCcw size={15} /> Restablecer
+                      </button>
+                    )}
+                  </div>
+                  {!!totalMsg && (
+                    <p className="mt-2 text-[12px] font-semibold text-[#1E7145]" data-testid="total-facade-msg">
+                      {totalMsg}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-2xl font-extrabold text-[#111111]" data-testid="total-facade-value">
+                  {settings.total_facade_effective.toLocaleString("es-ES")} paneles
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-2 overflow-x-auto px-4 py-3">
             {TYPES.map((tp) => {
               const selected = type === tp.key;

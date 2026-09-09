@@ -325,6 +325,10 @@ class DimsPayload(BaseModel):
     dims: dict
 
 
+class SettingsPayload(BaseModel):
+    total_facade_override: Optional[int] = None
+
+
 # ---------- Helpers ----------
 
 def display_name(name: str) -> str:
@@ -714,10 +718,48 @@ async def delete_team(team_id: str):
     return {"deleted": True, "id": team_id}
 
 
+async def get_total_facade_effective() -> int:
+    """Total de paneles de fachada usado en los cálculos: override manual si existe, si no el conteo real del modelo."""
+    doc = await db.settings.find_one({"_id": "app"})
+    if doc and isinstance(doc.get("total_facade_override"), int) and doc["total_facade_override"] > 0:
+        return doc["total_facade_override"]
+    return len(FACADE_NAMES)
+
+
+@api_router.get("/settings")
+async def get_settings():
+    doc = await db.settings.find_one({"_id": "app"})
+    override = doc.get("total_facade_override") if doc else None
+    if not (isinstance(override, int) and override > 0):
+        override = None
+    return {
+        "total_facade_override": override,
+        "total_facade_default": len(FACADE_NAMES),
+        "total_facade_effective": override if override else len(FACADE_NAMES),
+    }
+
+
+@api_router.put("/settings")
+async def update_settings(payload: SettingsPayload):
+    override = payload.total_facade_override
+    if override is not None and (not isinstance(override, int) or override <= 0):
+        raise HTTPException(status_code=422, detail="El total debe ser un número entero mayor que 0")
+    await db.settings.update_one(
+        {"_id": "app"},
+        {"$set": {"total_facade_override": override}},
+        upsert=True,
+    )
+    return {
+        "total_facade_override": override,
+        "total_facade_default": len(FACADE_NAMES),
+        "total_facade_effective": override if override else len(FACADE_NAMES),
+    }
+
+
 @api_router.get("/teams/stats")
 async def teams_stats():
     tags = await fetch_tags_map()
-    total_facade = len(FACADE_NAMES)
+    total_facade = await get_total_facade_effective()
     teams = {}
     async for doc in db.teams.find().sort("nombre", 1):
         tm = Team.from_mongo(doc)
@@ -777,7 +819,7 @@ async def get_stats():
             tagged += 1
         if t.observation:
             con_obs += 1
-    total = len(FACADE_NAMES)
+    total = await get_total_facade_effective()
     por_fachada = {d: {"total": 0, "etiquetados": 0} for d in ["norte", "sur", "este", "oeste"]}
     for name in FACADE_NAMES:
         d = FACADES.get(name)
@@ -808,7 +850,7 @@ async def get_stats():
         "total": total,
         "counts": counts,
         "etiquetados": tagged,
-        "sin_estado": total - tagged,
+        "sin_estado": max(total - tagged, 0),
         "con_observaciones": con_obs,
         "por_fachada": por_fachada,
         "semana": semana,

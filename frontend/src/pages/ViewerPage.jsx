@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AlertCircle, Compass, Hand, Loader2, Tag, X } from "lucide-react";
+import { AlertCircle, Hand, Loader2, Tag, X } from "lucide-react";
 
 import { api, VIEWER_URL } from "../lib/api";
 import { TagSheet } from "../components/TagSheet";
 import { notifySync } from "../components/SyncToast";
+import { CompassRose } from "../components/CompassRose";
 import { LOGOS, NO_STATUS_COLOR, STATUSES, displayName } from "../lib/theme";
 const ISO_FILTERS = [
   { key: "all", label: "Todas" },
@@ -24,6 +25,7 @@ export default function ViewerPage() {
   const [focusedName, setFocusedName] = useState(null);
   const [sheetObj, setSheetObj] = useState(null);
   const [hover, setHover] = useState(null);
+  const [heading, setHeading] = useState(0);
   const loadedRef = useRef(false);
   const pendingFocusRef = useRef(null);
   const [searchParams] = useSearchParams();
@@ -105,6 +107,8 @@ export default function ViewerPage() {
         openObject(msg.name);
       } else if (msg.type === "hover") {
         setHover(msg.name ? { name: msg.name, x: msg.x, y: msg.y } : null);
+      } else if (msg.type === "heading") {
+        setHeading(msg.angle || 0);
       }
     };
     window.addEventListener("message", handler);
@@ -212,12 +216,12 @@ export default function ViewerPage() {
             <button
               data-testid="compass-button"
               onClick={() => setCompassOpen((v) => !v)}
-              title="Orientar hacia una fachada"
+              title="Brújula · orientar hacia una fachada"
               className={`flex h-8 w-8 items-center justify-center rounded-full border transition-colors ${
-                compassOpen ? "border-[#1C1C1E] bg-[#1C1C1E] text-white" : "border-[#C7C7CC] bg-white/70 text-[#1C1C1E]"
+                compassOpen ? "border-[#1C1C1E] bg-white" : "border-[#C7C7CC] bg-white/70"
               }`}
             >
-              <Compass size={16} />
+              <CompassRose angle={heading} size={22} />
             </button>
             {compassOpen && (
               <div
@@ -241,7 +245,7 @@ export default function ViewerPage() {
                   O
                 </button>
                 <div className="flex h-9 w-9 items-center justify-center">
-                  <Compass size={18} className="text-[#8E8E93]" />
+                  <CompassRose angle={heading} size={30} showLabels />
                 </div>
                 <button
                   data-testid="compass-este"
