@@ -29,7 +29,7 @@ export function SyncToast() {
     <div
       key={toast.id}
       data-testid="sync-toast"
-      className="pointer-events-none fixed left-1/2 top-4 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-full border border-[#E5E5EA] bg-white/95 px-4 py-2.5 shadow-lg backdrop-blur-sm animate-[syncIn_0.25s_ease-out]"
+      className="pointer-events-none fixed left-1/2 top-16 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-full border border-[#E5E5EA] bg-white/95 px-4 py-2.5 shadow-lg backdrop-blur-sm animate-[syncIn_0.25s_ease-out]"
     >
       <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#E8F0FE]">
         <RefreshCw size={13} className="text-[#007AFF]" />

@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Compass, Factory, FileText, Loader2, LogOut, Minus, TrendingDown, TrendingUp, Users } from "lucide-react";
+import { Compass, Factory, FileText, Loader2, Minus, TrendingDown, TrendingUp, Users } from "lucide-react";
 
 import { api } from "../lib/api";
-import { useRole } from "../context/RoleContext";
 import { notifySync } from "../components/SyncToast";
 import { LOGOS, NO_STATUS_COLOR, STATUSES } from "../lib/theme";
 
@@ -18,7 +17,6 @@ const pctLabelOf = (raw) => (raw > 0 && raw < 1 ? "<1%" : `${Math.round(raw)}%`)
 
 export default function ProgressPage() {
   const navigate = useNavigate();
-  const { role, logout } = useRole();
   const [stats, setStats] = useState(null);
   const [teamStats, setTeamStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -60,31 +58,14 @@ export default function ProgressPage() {
     <div className="h-full overflow-y-auto bg-white" data-testid="progress-screen">
       <div className="mx-auto w-full max-w-3xl px-4 pb-8 pt-4">
         <div className="flex items-center justify-between pb-2">
-          <div>
-            <h1 className="text-2xl font-extrabold text-[#111111]">Progreso</h1>
-            <p className="mt-0.5 text-[11px] font-semibold text-[#8E8E93]" data-testid="current-role-label">
-              {role === "admin" ? "Administrador" : "Usuario (solo lectura)"}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              data-testid="reports-button"
-              onClick={() => navigate("/reports")}
-              className="flex h-9 items-center gap-1.5 rounded-full bg-[#1C1C1E] px-3.5 text-[13px] font-bold text-white transition-opacity hover:opacity-90"
-            >
-              <FileText size={15} /> Reportes
-            </button>
-            <button
-              data-testid="logout-button"
-              onClick={() => {
-                logout();
-                navigate("/login", { replace: true });
-              }}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F2F2F7] transition-opacity hover:opacity-70"
-            >
-              <LogOut size={18} className="text-[#636366]" />
-            </button>
-          </div>
+          <h1 className="text-2xl font-extrabold text-[#111111]">Progreso</h1>
+          <button
+            data-testid="reports-button"
+            onClick={() => navigate("/reports")}
+            className="flex h-9 items-center gap-1.5 rounded-full bg-[#1C1C1E] px-3.5 text-[13px] font-bold text-white transition-opacity hover:opacity-90"
+          >
+            <FileText size={15} /> Reportes
+          </button>
         </div>
 
         {loading ? (

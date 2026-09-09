@@ -1,6 +1,6 @@
 import React from "react";
-import { Navigate, NavLink, Outlet } from "react-router-dom";
-import { Box, Camera, List, PieChart, Users } from "lucide-react";
+import { Navigate, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Box, Camera, List, LogOut, PieChart, Users } from "lucide-react";
 
 import { useRole } from "../context/RoleContext";
 import { SyncToast } from "./SyncToast";
@@ -14,12 +14,31 @@ const TABS = [
 ];
 
 export default function AppLayout() {
-  const { role } = useRole();
+  const { role, logout } = useRole();
+  const navigate = useNavigate();
   if (!role) return <Navigate to="/login" replace />;
 
   return (
     <div className="flex h-screen flex-col bg-white">
-      <nav className="flex shrink-0 items-center gap-1 border-b border-[#E5E5EA] bg-white px-4 py-2.5 sm:px-6" data-testid="main-nav">
+      <div
+        className="relative flex shrink-0 items-center bg-[#F2F2F7] px-4 py-2 sm:px-6"
+        data-testid="top-bar"
+      >
+        <span className="mx-auto text-[12px] font-bold text-[#3A3A3C]" data-testid="top-bar-role">
+          {role === "admin" ? "Administrador" : "Usuario (solo lectura)"}
+        </span>
+        <button
+          data-testid="top-bar-logout"
+          onClick={() => {
+            logout();
+            navigate("/login", { replace: true });
+          }}
+          className="absolute right-4 flex h-8 items-center gap-1.5 rounded-full bg-white px-3 text-[12px] font-bold text-[#636366] shadow-sm transition-opacity hover:opacity-70 sm:right-6"
+        >
+          <LogOut size={15} /> Salir
+        </button>
+      </div>
+      <nav className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[#E5E5EA] bg-white px-4 py-2.5 sm:px-6" data-testid="main-nav">
         {TABS.filter((t) => !t.adminOnly || role === "admin").map((t) => (
           <NavLink
             key={t.to}
@@ -36,9 +55,6 @@ export default function AppLayout() {
             {t.label}
           </NavLink>
         ))}
-        <span className="ml-auto text-[11px] font-semibold text-[#8E8E93]" data-testid="nav-role-label">
-          {role === "admin" ? "Administrador" : "Usuario (solo lectura)"}
-        </span>
       </nav>
       <main className="min-h-0 flex-1">
         <Outlet />
