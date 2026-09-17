@@ -95,3 +95,9 @@
 - Nuevo tipo de reporte `diario` (botón `report-type-diario`, "Instalación día") a la IZQUIERDA de "Instalación semanal" en ReportsPage.
 - Despliega un calendario (shadcn `ui/calendar` = react-day-picker, locale es) en un Popover (`day-picker-trigger`/`day-picker-popover`); flechas día anterior/siguiente (`day-prev`/`day-next`), días futuros deshabilitados.
 - `getRange` para diario: from=to=día seleccionado, status='instalado'. Reutiliza `GET /api/report` (filtra eventos del history por fecha exacta) y los export PDF/Excel. El resumen muestra "N instalaciones". Verificado: screenshot del calendario + curl (2026-09-07 → C7B-2 Equipo 1; cada día muestra sólo lo instalado ese día).
+
+## 2026-09 — PDF de reportes rediseñado
+- **Foto por panel**: `build_report` añade `photo` a cada item (foto de la observación del mismo día del evento, o la última con foto). `make_pdf` añade columna "Foto" y embebe la imagen (helper `_pdf_photo`: descarga de object storage con cache, conserva aspecto, máx 26×22 mm; "—" si no hay/error).
+- **Logos centrados y proporcionados**: `_pdf_letterhead` ahora `hAlign="CENTER"` + ALIGN CENTER, altura 12 mm, anchos por ratio real (fiberkret 3.0, entrepisos/grcontreras ~2.48).
+- **Título**: "REPORTE DE INSTALACION NAB UNIVERSIDAD LIMA" centrado (styles Title), reemplaza "Reporte BIMTracker — Fachada"; período centrado debajo. Metadata del PDF también actualizada.
+- colWidths reajustados a 180 mm útiles (A4). Verificado renderizando el PDF a imagen (pymupdf): foto embebida JPEG/DCTDecode, logos centrados, título correcto.

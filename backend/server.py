@@ -882,6 +882,17 @@ async def build_report(from_: str, to: str, status: str, facade: str = "all", te
     team_names = await fetch_team_names()
     counts = {s: 0 for s in STATUS_ORDER}
     items = []
+
+    def _photo_for(t, event_day):
+        obs_photos = [((ob.get("date") or "")[:10], ob.get("photo")) for ob in (t.observations or []) if ob.get("photo")]
+        if not obs_photos:
+            return None
+        same = [p for dd, p in obs_photos if dd == event_day]
+        if same:
+            return same[-1]
+        obs_photos.sort(key=lambda x: x[0])
+        return obs_photos[-1][1]
+
     for name, t in tags.items():
         if facade != "all" and FACADES.get(name) != facade:
             continue
@@ -910,6 +921,7 @@ async def build_report(from_: str, to: str, status: str, facade: str = "all", te
                 "observation": t.observation,
                 "team_id": tid,
                 "team_name": team_names.get(tid) or ev.get("team_name") or None,
+                "photo": _photo_for(t, d),
             })
             if ev_status in counts:
                 counts[ev_status] += 1
@@ -940,12 +952,15 @@ def _pdf_letterhead(elems, mm):
         ("logo_entrepisos.png", 921 / 371),
         ("logo_grcontreras.png", 921 / 372),
     ]
-    lh = 10 * mm
+    lh = 12 * mm
     imgs = [RLImage(str(STATIC_DIR / f), width=lh * r, height=lh)
             for f, r in logo_defs if (STATIC_DIR / f).exists()]
     if imgs:
-        letterhead = Table([imgs], colWidths=[i.drawWidth + 8 * mm for i in imgs], hAlign="LEFT")
-        letterhead.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
+        letterhead = Table([imgs], colWidths=[i.drawWidth + 8 * mm for i in imgs], hAlign="CENTER")
+        letterhead.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ]))
         elems.append(letterhead)
         elems.append(Spacer(1, 5 * mm))
 
@@ -970,16 +985,40 @@ def _xlsx_header(ws, header, Font, PatternFill):
         c.fill = PatternFill(start_color="1C1C1E", end_color="1C1C1E", fill_type="solid")
 
 
+def _pdf_photo(path, mm, RLImage, cache):
+    """Devuelve un RLImage con la foto del panel (aspecto conservado) o '—' si no hay/error."""
+    if not path:
+        return "—"
+    try:
+        from io import BytesIO
+        from PIL import Image as PILImage
+        if path not in cache:
+            data, _ = storage_get_object(path)
+            cache[path] = data
+        data = cache[path]
+        im = PILImage.open(BytesIO(data))
+        w, h = im.size
+        maxw, maxh = 26 * mm, 22 * mm
+        rw, rh = maxw, maxw * h / w
+        if rh > maxh:
+            rh, rw = maxh, maxh * w / h
+        return RLImage(BytesIO(data), width=rw, height=rh)
+    except Exception as e:
+        logging.warning(f"PDF foto falló ({path}): {e}")
+        return "—"
+
+
 def make_pdf(data: dict, from_: str, to: str, status: str, facade: str = "all", team: str = "all") -> bytes:
     from io import BytesIO
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors as rl_colors
     from reportlab.lib.units import mm
     from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.platypus import Image as RLImage
     from reportlab.lib.styles import getSampleStyleSheet
 
     buf = BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=A4, title="Reporte BIMTracker",
+    doc = SimpleDocTemplate(buf, pagesize=A4, title="Reporte de Instalación NAB Universidad Lima",
                             leftMargin=15 * mm, rightMargin=15 * mm,
                             topMargin=15 * mm, bottomMargin=15 * mm)
     styles = getSampleStyleSheet()
@@ -990,9 +1029,11 @@ def make_pdf(data: dict, from_: str, to: str, status: str, facade: str = "all", 
         period += f" &nbsp;·&nbsp; Fachada: {FACADE_LABELS.get(facade, facade)}"
     if team != "all":
         period += f" &nbsp;·&nbsp; Equipo: {data.get('team_label', '')}"
+    center_normal = styles["Normal"].clone("CenterNormal")
+    center_normal.alignment = 1
     elems += [
-        Paragraph("Reporte BIMTracker — Fachada", styles["Title"]),
-        Paragraph(period, styles["Normal"]),
+        Paragraph("REPORTE DE INSTALACION NAB UNIVERSIDAD LIMA", styles["Title"]),
+        Paragraph(period, center_normal),
         Spacer(1, 4 * mm),
     ]
     summary = "   ·   ".join(
@@ -1002,7 +1043,8 @@ def make_pdf(data: dict, from_: str, to: str, status: str, facade: str = "all", 
     if summary:
         elems.append(Paragraph(summary, styles["Normal"]))
     elems.append(Spacer(1, 5 * mm))
-    rows = [["Pieza", "Estado", "Fachada", "Equipo", "Fecha", "Observación"]]
+    photo_cache = {}
+    rows = [["Pieza", "Estado", "Fachada", "Equipo", "Fecha", "Observación", "Foto"]]
     for it in data["items"]:
         rows.append([
             Paragraph(display_name(it["name"]), styles["BodyText"]),
@@ -1011,8 +1053,9 @@ def make_pdf(data: dict, from_: str, to: str, status: str, facade: str = "all", 
             Paragraph(it.get("team_name") or "—", styles["BodyText"]),
             (it["date"] or "")[:10],
             Paragraph(it["observation"] or "", styles["BodyText"]),
+            _pdf_photo(it.get("photo"), mm, RLImage, photo_cache),
         ])
-    table = Table(rows, colWidths=[46 * mm, 20 * mm, 18 * mm, 24 * mm, 20 * mm, 42 * mm], repeatRows=1)
+    table = Table(rows, colWidths=[32 * mm, 18 * mm, 16 * mm, 22 * mm, 18 * mm, 46 * mm, 28 * mm], repeatRows=1)
     table.setStyle(_pdf_table_style(rl_colors, TableStyle))
     elems.append(table)
     doc.build(elems)
