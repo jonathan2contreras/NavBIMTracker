@@ -2,9 +2,11 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
 import "dayjs/locale/es";
+import { es } from "date-fns/locale";
 import {
   ArrowRight,
   Calendar,
+  CalendarClock,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -20,12 +22,15 @@ import {
 import { api, BACKEND_URL } from "../lib/api";
 import { useRole } from "../context/RoleContext";
 import { Chip } from "../components/Chip";
+import { Calendar as CalendarPicker } from "../components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { TeamFilter } from "../components/TeamFilter";
 import { FACADE_FILTERS, FACADE_LABELS, NO_STATUS_COLOR, STATUSES, displayName, formatDate, statusMeta } from "../lib/theme";
 
 dayjs.locale("es");
 
 const TYPES = [
+  { key: "diario", label: "Instalación día", Icon: CalendarClock },
   { key: "semanal", label: "Instalación semanal", Icon: Calendar },
   { key: "mensual", label: "Mensual", Icon: CalendarDays },
   { key: "personalizado", label: "Filtros", Icon: SlidersHorizontal },
@@ -45,6 +50,8 @@ export default function ReportsPage() {
   const [type, setType] = useState("semanal");
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
+  const [dayDate, setDayDate] = useState(new Date());
+  const [dayPickerOpen, setDayPickerOpen] = useState(false);
   const [customStatus, setCustomStatus] = useState("all");
   const [customFacade, setCustomFacade] = useState("all");
   const [team, setTeam] = useState("all");
@@ -109,6 +116,10 @@ export default function ReportsPage() {
   }, []);
 
   const getRange = useCallback(() => {
+    if (type === "diario") {
+      const d = dayjs(dayDate).format("YYYY-MM-DD");
+      return { from: d, to: d, status: "instalado", facade: "all", team };
+    }
     if (type === "semanal") {
       const base = dayjs().add(weekOffset, "week");
       const dow = (base.day() + 6) % 7;
@@ -127,7 +138,7 @@ export default function ReportsPage() {
       };
     }
     return { from: fromText.trim(), to: toText.trim(), status: customStatus, facade: customFacade, team };
-  }, [type, weekOffset, monthOffset, fromText, toText, customStatus, customFacade, team]);
+  }, [type, weekOffset, monthOffset, dayDate, fromText, toText, customStatus, customFacade, team]);
 
   const exportReport = useCallback(
     (format) => {
@@ -172,7 +183,7 @@ export default function ReportsPage() {
   useEffect(() => {
     fetchReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, weekOffset, monthOffset, customStatus, customFacade, team]);
+  }, [type, weekOffset, monthOffset, dayDate, customStatus, customFacade, team]);
 
   const rangeLabel = () => {
     if (type === "semanal") {
@@ -287,7 +298,59 @@ export default function ReportsPage() {
             })}
           </div>
 
-          {type !== "personalizado" && (
+          {type === "diario" && (
+            <div className="mx-4 mb-3 flex items-center justify-between rounded-xl bg-[#F2F2F7] px-2 py-2" data-testid="day-selector">
+              <button
+                data-testid="day-prev"
+                onClick={() => setDayDate((d) => dayjs(d).subtract(1, "day").toDate())}
+                className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-white"
+              >
+                <ChevronLeft size={18} className="text-[#111111]" />
+              </button>
+              <Popover open={dayPickerOpen} onOpenChange={setDayPickerOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    data-testid="day-picker-trigger"
+                    className="flex flex-col items-center rounded-lg px-4 py-1 hover:bg-white"
+                  >
+                    <span className="flex items-center gap-1.5 text-[15px] font-bold text-[#111111]" data-testid="day-label">
+                      <CalendarClock size={15} className="text-[#636366]" />
+                      {(() => {
+                        const l = dayjs(dayDate).format("dddd, D MMM YYYY");
+                        return l.charAt(0).toUpperCase() + l.slice(1);
+                      })()}
+                    </span>
+                    <span className="mt-0.5 text-[11px] text-[#8E8E93]">Toca para elegir el día · piezas instaladas</span>
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="center" data-testid="day-picker-popover">
+                  <CalendarPicker
+                    mode="single"
+                    locale={es}
+                    selected={dayDate}
+                    defaultMonth={dayDate}
+                    onSelect={(d) => {
+                      if (d) setDayDate(d);
+                      setDayPickerOpen(false);
+                    }}
+                    disabled={(d) => d > new Date()}
+                  />
+                </PopoverContent>
+              </Popover>
+              <button
+                data-testid="day-next"
+                disabled={dayjs(dayDate).isSame(dayjs(), "day") || dayjs(dayDate).isAfter(dayjs(), "day")}
+                onClick={() => setDayDate((d) => dayjs(d).add(1, "day").toDate())}
+                className={`flex h-10 w-10 items-center justify-center rounded-full hover:bg-white ${
+                  dayjs(dayDate).isSame(dayjs(), "day") || dayjs(dayDate).isAfter(dayjs(), "day") ? "opacity-30" : ""
+                }`}
+              >
+                <ChevronRight size={18} className="text-[#111111]" />
+              </button>
+            </div>
+          )}
+
+          {(type === "semanal" || type === "mensual") && (
             <div className="mx-4 mb-3 flex items-center justify-between rounded-xl bg-[#F2F2F7] px-2 py-2">
               <button
                 data-testid="period-prev"
@@ -399,10 +462,10 @@ export default function ReportsPage() {
               <>
                 <div className="mx-4 mb-2 flex flex-col gap-2 rounded-xl bg-[#F2F2F7] p-3" data-testid="report-summary">
                   <p className="text-sm font-bold text-[#111111]">
-                    {data.total.toLocaleString("es-ES")} {type === "semanal" ? "instalaciones" : "movimientos"} en el
-                    período
+                    {data.total.toLocaleString("es-ES")}{" "}
+                    {type === "semanal" || type === "diario" ? "instalaciones" : "movimientos"} en el período
                   </p>
-                  {type !== "semanal" && (
+                  {type !== "semanal" && type !== "diario" && (
                     <div className="flex flex-wrap gap-2">
                       {STATUSES.filter((s) => (data.counts[s.key] || 0) > 0).map((s) => (
                         <span
