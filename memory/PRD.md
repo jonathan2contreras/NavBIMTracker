@@ -109,3 +109,8 @@
 - Secuencia obligatoria: **Fabricado → Enviado → Instalado → Recepcionado**. Observaciones queda libre (sin regla).
 - Backend (`STAGE_ORDER` + validación en `upsert_tag`): al cambiar a un estado de la secuencia, exige que todos los anteriores estén en el `history`; si falta alguno devuelve 422 con detalle (ej. "No puedes marcar 'Instalado' sin antes marcar: Enviado."). Solo se valida en cambio de estado (re-guardar el mismo estado o añadir observación no dispara). Verificado con curl (enviado/instalado/entregable bloqueados sin prerequisitos; observaciones libre).
 - Frontend: `api.js` ahora adjunta `detail` del error. TagSheet bloquea los pills no permitidos (opacity 45, cursor-not-allowed, tooltip "Primero marca: …") según `obj.history`, muestra hint "Orden obligatorio: …" y surface del mensaje 422. Verificado con screenshot (panel nuevo: solo Fabricado y Observaciones activos).
+
+## 2026-09 — FIX: reportes por estado reflejan el estado ACTUAL (no eventos revertidos)
+- Bug reportado: en reportes aparecían paneles "instalados" que en el modelo 3D ya no lo estaban (estado revertido/quitado). Causa: `build_report` iteraba el `history` e incluía cualquier evento con el estado filtrado.
+- Fix en `build_report`: para `status != 'all'` hace snapshot por ESTADO ACTUAL (`t.status == status`), usando la fecha del ÚLTIMO evento del history con ese estado (una fila por panel). Para `status == 'all'` (Mensual) se mantiene el registro de movimientos por evento. Afecta a semanal/día/personalizado y a los export PDF/Excel (coherentes con el modelo 3D y con GET /api/tags).
+- Verificado por testing_agent (iteration_7.json): 6/6 backend OK, sin issues; datos de prueba limpiados (tags=0). Test: `/app/backend/tests/test_report_current_state_iter7.py`.
