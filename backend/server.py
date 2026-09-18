@@ -26,6 +26,8 @@ VIEWER_PATH = STATIC_DIR / 'viewer.html'
 
 VALID_STATUSES = {"fabricado", "enviado", "instalado", "entregable", "observaciones"}
 STATUS_ORDER = ["fabricado", "enviado", "instalado", "entregable", "observaciones"]
+# Secuencia obligatoria de etiquetado (observaciones no sigue esta regla)
+STAGE_ORDER = ["fabricado", "enviado", "instalado", "entregable"]
 STATUS_LABELS = {
     "fabricado": "Fabricado",
     "enviado": "Enviado",
@@ -616,6 +618,17 @@ async def upsert_tag(payload: TagUpsert):
     photo = (payload.photo or "").strip() or None
     existing = await db.tags.find_one({"object_name": payload.object_name})
     prev = Tag.from_mongo(existing) if existing else None
+    # Regla de progresión: fabricado -> enviado -> instalado -> recepcionado (solo al cambiar de estado)
+    if payload.status in STAGE_ORDER and (not prev or prev.status != payload.status):
+        done = {ev.get("status") for ev in (prev.history if prev else [])}
+        idx = STAGE_ORDER.index(payload.status)
+        missing = [s for s in STAGE_ORDER[:idx] if s not in done]
+        if missing:
+            labels = ", ".join(STATUS_LABELS.get(s, s) for s in missing)
+            raise HTTPException(
+                status_code=422,
+                detail=f"No puedes marcar '{STATUS_LABELS.get(payload.status, payload.status)}' sin antes marcar: {labels}.",
+            )
     # delete only if clearing status, no new observation/photo and no observation history
     if payload.status is None and not obs and not photo and not (prev and prev.observations):
         await db.tags.delete_one({"object_name": payload.object_name})

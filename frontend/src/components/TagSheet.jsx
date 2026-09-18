@@ -6,6 +6,8 @@ import { PanelPreview } from "./panel3d/PanelPreview";
 import { useRole } from "../context/RoleContext";
 import { FACADE_LABELS, NO_STATUS_COLOR, STATUSES, displayName, formatArea, formatDate, formatDims, statusMeta } from "../lib/theme";
 
+const STAGE_ORDER = ["fabricado", "enviado", "instalado", "entregable"];
+
 export const TagSheet = ({ obj, onClose, onSaved }) => {
   const { isAdmin } = useRole();
   const readOnly = !isAdmin;
@@ -51,6 +53,21 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
     return all.reverse();
   }, [obj]);
 
+  const doneStatuses = useMemo(() => new Set((obj.history || []).map((h) => h.status)), [obj]);
+  const labelOf = useCallback((key) => STATUSES.find((x) => x.key === key)?.label || key, []);
+  const missingFor = useCallback(
+    (key) => {
+      const idx = STAGE_ORDER.indexOf(key);
+      if (idx <= 0) return [];
+      return STAGE_ORDER.slice(0, idx).filter((s) => !doneStatuses.has(s));
+    },
+    [doneStatuses]
+  );
+  const isAllowed = useCallback(
+    (key) => key === "observaciones" || missingFor(key).length === 0,
+    [missingFor]
+  );
+
   const handlePhotoPick = useCallback((e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -92,8 +109,8 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
       const latest = newObs || (prevList.length ? prevList[prevList.length - 1].text : "") || "";
       onSaved?.({ ...obj, status, observation: latest });
       onClose();
-    } catch {
-      setError("No se pudo guardar. Inténtalo de nuevo.");
+    } catch (err) {
+      setError(err?.detail || "No se pudo guardar. Inténtalo de nuevo.");
       setSaving(false);
     }
   }, [obj, status, observation, photoFile, teamId, teams, onSaved, onClose]);
@@ -140,13 +157,21 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
           <div className="grid grid-cols-2 gap-2">
             {STATUSES.map((s) => {
               const selected = status === s.key;
+              const allowed = selected || isAllowed(s.key);
+              const disabled = readOnly || !allowed;
+              const miss = missingFor(s.key);
               return (
                 <button
                   key={s.key}
                   data-testid={`status-pill-${s.key}`}
-                  disabled={readOnly}
-                  onClick={() => setStatus(selected ? null : s.key)}
-                  className={`flex h-11 items-center justify-center gap-1.5 rounded-full border-[1.5px] text-sm font-semibold transition-colors ${readOnly && !selected ? "opacity-45" : ""}`}
+                  disabled={disabled}
+                  title={!allowed && !readOnly ? `Primero marca: ${miss.map(labelOf).join(", ")}` : undefined}
+                  onClick={() => {
+                    if (disabled) return;
+                    setStatus(selected ? null : s.key);
+                    if (error) setError("");
+                  }}
+                  className={`flex h-11 items-center justify-center gap-1.5 rounded-full border-[1.5px] text-sm font-semibold transition-colors ${disabled && !selected ? "cursor-not-allowed opacity-45" : ""}`}
                   style={{
                     borderColor: s.key === "entregable" ? "#C7C7CC" : s.color,
                     backgroundColor: selected ? s.color : "#FFFFFF",
@@ -159,6 +184,11 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
               );
             })}
           </div>
+          {!readOnly && (
+            <p className="mt-2 text-[11px] leading-snug text-[#8E8E93]" data-testid="status-order-hint">
+              Orden obligatorio: Fabricado → Enviado → Instalado → Recepcionado. Observaciones es libre.
+            </p>
+          )}
           {status !== null && !readOnly && (
             <button
               data-testid="status-clear-button"

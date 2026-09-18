@@ -8,7 +8,16 @@ async function req(path, opts) {
     headers: { "Content-Type": "application/json" },
     ...opts,
   });
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  if (!r.ok) {
+    let detail;
+    try {
+      detail = (await r.json()).detail;
+    } catch {}
+    const e = new Error(detail || `HTTP ${r.status}`);
+    e.status = r.status;
+    e.detail = detail;
+    throw e;
+  }
   return r.json();
 }
 
