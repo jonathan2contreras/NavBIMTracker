@@ -31,7 +31,7 @@ STATUS_LABELS = {
     "enviado": "Enviado",
     "instalado": "Instalado",
     "entregado": "Entregado",  # kept for historical events in old reports
-    "entregable": "Entregable",
+    "entregable": "Recepcionado",
     "observaciones": "Observaciones",
     "all": "Todas",
 }

@@ -101,3 +101,6 @@
 - **Logos centrados y proporcionados**: `_pdf_letterhead` ahora `hAlign="CENTER"` + ALIGN CENTER, altura 12 mm, anchos por ratio real (fiberkret 3.0, entrepisos/grcontreras ~2.48).
 - **Título**: "REPORTE DE INSTALACION NAB UNIVERSIDAD LIMA" centrado (styles Title), reemplaza "Reporte BIMTracker — Fachada"; período centrado debajo. Metadata del PDF también actualizada.
 - colWidths reajustados a 180 mm útiles (A4). Verificado renderizando el PDF a imagen (pymupdf): foto embebida JPEG/DCTDecode, logos centrados, título correcto.
+
+## 2026-09 — Renombrado de etiqueta
+- Etiqueta visible "Entregable" → **"Recepcionado"** en toda la app (menús, chips, tarjetas, leyenda del visor 3D, TagSheet, PDF/Excel). Cambiado solo el label en `frontend/src/lib/theme.js` (STATUSES) y `backend/server.py` STATUS_LABELS. La clave interna `entregable` se mantiene (compatibilidad de datos y color #F3EAD0). Verificado con screenshot.

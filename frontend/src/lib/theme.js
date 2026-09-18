@@ -2,7 +2,7 @@ export const STATUSES = [
   { key: "fabricado", label: "Fabricado", color: "#007AFF", accent: "#007AFF", textOn: "#FFFFFF" },
   { key: "enviado", label: "Enviado", color: "#FF9500", accent: "#FF9500", textOn: "#FFFFFF" },
   { key: "instalado", label: "Instalado", color: "#34C759", accent: "#34C759", textOn: "#FFFFFF" },
-  { key: "entregable", label: "Entregable", color: "#F3EAD0", accent: "#8A7A50", textOn: "#111111" },
+  { key: "entregable", label: "Recepcionado", color: "#F3EAD0", accent: "#8A7A50", textOn: "#111111" },
   { key: "observaciones", label: "Observaciones", color: "#FFD60A", accent: "#D19E00", textOn: "#111111" },
 ];
 
