@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Box, ChevronRight, Compass, Loader2, Search, XCircle } from "lucide-react";
+import { Box, ChevronRight, Compass, Loader2, Search, TriangleAlert, XCircle } from "lucide-react";
 
 import { api } from "../lib/api";
 import { TagSheet } from "../components/TagSheet";
@@ -201,6 +201,8 @@ export default function ObjectsPage() {
           <div className="min-h-0 flex-1 overflow-y-auto" onScroll={onScroll} ref={listRef} data-testid="objects-list">
             {items.map((item) => {
               const meta = statusMeta(item.status);
+              const missing = item.blocked_missing || [];
+              const missingLabels = missing.map((k) => STATUSES.find((s) => s.key === k)?.label || k);
               return (
                 <div
                   key={item.name}
@@ -226,6 +228,16 @@ export default function ObjectsPage() {
                       )}
                     </p>
                   </div>
+                  {missing.length > 0 && (
+                    <span
+                      data-testid={`blocked-icon-${item.name}`}
+                      title={`No puede avanzar: falta registrar ${missingLabels.join(", ")}`}
+                      className="flex h-6 shrink-0 items-center gap-1 rounded-full bg-[#FFF4E5] px-2 text-[11px] font-bold text-[#B25E00]"
+                    >
+                      <TriangleAlert size={13} />
+                      Falta {missingLabels.join(", ")}
+                    </span>
+                  )}
                   <button
                     data-testid={`view-3d-button-${item.name}`}
                     onClick={(e) => {

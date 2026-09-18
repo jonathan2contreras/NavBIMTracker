@@ -534,6 +534,18 @@ async def delete_photo(object_name: str, photo: str):
     return {"deleted": True, "object_name": object_name, "observations": observations}
 
 
+def missing_prev_steps(t) -> list:
+    """Pasos previos que faltan en el history según el estado actual (bloquean avanzar al siguiente).
+    Vacío si no aplica (sin estado, observaciones, etapa final o progresión completa)."""
+    if not t or not t.status or t.status not in STAGE_ORDER:
+        return []
+    idx = STAGE_ORDER.index(t.status)
+    if idx == len(STAGE_ORDER) - 1:
+        return []  # etapa final: no hay siguiente estado
+    done = {ev.get("status") for ev in (t.history or [])}
+    return [s for s in STAGE_ORDER[:idx] if s not in done]
+
+
 @api_router.get("/objects")
 async def list_objects(
     search: str = "",
@@ -564,6 +576,7 @@ async def list_objects(
             "facade": FACADES.get(o['name']),
             "status": t_status,
             "observation": t.observation if t else "",
+            "blocked_missing": missing_prev_steps(t),
         })
     total = len(filtered)
     return {"total": total, "items": filtered[skip:skip + limit]}

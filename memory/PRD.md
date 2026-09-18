@@ -114,3 +114,7 @@
 - Bug reportado: en reportes aparecían paneles "instalados" que en el modelo 3D ya no lo estaban (estado revertido/quitado). Causa: `build_report` iteraba el `history` e incluía cualquier evento con el estado filtrado.
 - Fix en `build_report`: para `status != 'all'` hace snapshot por ESTADO ACTUAL (`t.status == status`), usando la fecha del ÚLTIMO evento del history con ese estado (una fila por panel). Para `status == 'all'` (Mensual) se mantiene el registro de movimientos por evento. Afecta a semanal/día/personalizado y a los export PDF/Excel (coherentes con el modelo 3D y con GET /api/tags).
 - Verificado por testing_agent (iteration_7.json): 6/6 backend OK, sin issues; datos de prueba limpiados (tags=0). Test: `/app/backend/tests/test_report_current_state_iter7.py`.
+
+## 2026-09 — Aviso visual de progresión incompleta en Objetos
+- Backend: helper `missing_prev_steps(t)` (pasos previos ausentes en el history según el estado actual; vacío si sin estado, observaciones o etapa final). GET /api/objects añade `blocked_missing: [claves]` por item.
+- Frontend (ObjectsPage): si `blocked_missing` no está vacío, muestra una pastilla ámbar `⚠ Falta <estados>` (testid `blocked-icon-<name>`) con tooltip "No puede avanzar: falta registrar …". Solo afecta a datos incoherentes/legacy (la regla de progresión evita crear nuevos). Verificado con screenshot (panel Instalado sin fabricado/enviado → "Falta Fabricado, Enviado"); datos de prueba limpiados.
