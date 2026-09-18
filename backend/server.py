@@ -909,35 +909,69 @@ async def build_report(from_: str, to: str, status: str, facade: str = "all", te
     for name, t in tags.items():
         if facade != "all" and FACADES.get(name) != facade:
             continue
-        for ev in t.history or []:
-            ev_status = ev.get("status")
+        if status != "all":
+            # Snapshot por estado ACTUAL: refleja lo que se ve en el modelo 3D.
+            # Solo incluye paneles cuyo estado actual es el filtrado (no eventos revertidos).
+            if t.status != status:
+                continue
+            evs = [ev for ev in (t.history or []) if ev.get("status") == status]
+            if not evs:
+                continue
+            ev = evs[-1]  # última vez que pasó a su estado actual
             d = (ev.get("date") or "")[:10]
-            if not ev_status or not d:
+            if not d:
                 continue
             if from_ and d < from_:
                 continue
             if to and d > to:
                 continue
-            if status != "all" and ev_status != status:
-                continue
             tid = ev.get("team_id")
-            if team == "none" and (ev_status != "instalado" or (tid and tid in team_names)):
-                continue
-            if team not in ("all", "none") and tid != team:
+            if team == "none":
+                if status != "instalado" or (tid and tid in team_names):
+                    continue
+            elif team != "all" and tid != team:
                 continue
             items.append({
                 "name": name,
                 "mark": name.split(' ')[0],
                 "facade": FACADES.get(name),
-                "status": ev_status,
+                "status": status,
                 "date": ev.get("date"),
                 "observation": t.observation,
                 "team_id": tid,
                 "team_name": team_names.get(tid) or ev.get("team_name") or None,
                 "photo": _photo_for(t, d),
             })
-            if ev_status in counts:
-                counts[ev_status] += 1
+            counts[status] += 1
+        else:
+            # status == 'all': registro de movimientos (todos los eventos del history en el rango)
+            for ev in t.history or []:
+                ev_status = ev.get("status")
+                d = (ev.get("date") or "")[:10]
+                if not ev_status or not d:
+                    continue
+                if from_ and d < from_:
+                    continue
+                if to and d > to:
+                    continue
+                tid = ev.get("team_id")
+                if team == "none" and (ev_status != "instalado" or (tid and tid in team_names)):
+                    continue
+                if team not in ("all", "none") and tid != team:
+                    continue
+                items.append({
+                    "name": name,
+                    "mark": name.split(' ')[0],
+                    "facade": FACADES.get(name),
+                    "status": ev_status,
+                    "date": ev.get("date"),
+                    "observation": t.observation,
+                    "team_id": tid,
+                    "team_name": team_names.get(tid) or ev.get("team_name") or None,
+                    "photo": _photo_for(t, d),
+                })
+                if ev_status in counts:
+                    counts[ev_status] += 1
     items.sort(key=lambda x: x["date"] or "", reverse=True)
     return {"total": len(items), "counts": counts, "items": items, "team_label": team_filter_label(team, team_names)}
 
