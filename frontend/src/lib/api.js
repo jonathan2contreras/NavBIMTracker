@@ -1,19 +1,30 @@
 const BASE = process.env.REACT_APP_BACKEND_URL;
 
 export const BACKEND_URL = BASE;
+export const TOKEN_KEY = "bim_token";
+const authHeaders = () => {
+  const t = localStorage.getItem(TOKEN_KEY);
+  return t ? { Authorization: `Bearer ${t}` } : {};
+};
+
 export const VIEWER_URL = `${BASE}/api/viewer`;
 
 async function req(path, opts) {
   const r = await fetch(`${BASE}/api${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     ...opts,
   });
+  if (r.status === 401 && localStorage.getItem(TOKEN_KEY)) {
+    // Expired or invalid session: drop it so the UI returns to view-only mode.
+    localStorage.removeItem(TOKEN_KEY);
+    window.dispatchEvent(new Event("admin-logout"));
+  }
   if (!r.ok) {
     let detail;
     try {
       detail = (await r.json()).detail;
     } catch {}
-    const e = new Error(detail || `HTTP ${r.status}`);
+    const e = new Error(r.status === 401 ? "Sesión de administrador caducada: vuelve a iniciar sesión." : detail || `HTTP ${r.status}`);
     e.status = r.status;
     e.detail = detail;
     throw e;
@@ -27,7 +38,7 @@ export const api = {
   uploadPhoto: async (file) => {
     const fd = new FormData();
     fd.append("file", file);
-    const r = await fetch(`${BASE}/api/upload`, { method: "POST", body: fd });
+    const r = await fetch(`${BASE}/api/upload`, { method: "POST", body: fd, headers: authHeaders() });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json();
   },
@@ -53,6 +64,10 @@ export const api = {
     req(`/photos?facade=${p.facade || "all"}&from=${p.from || ""}&to=${p.to || ""}`),
   deletePhoto: (objectName, photo) =>
     req(`/photos?object_name=${encodeURIComponent(objectName)}&photo=${encodeURIComponent(photo)}`, { method: "DELETE" }),
-  verifyAdmin: (password) =>
-    req("/admin/verify", { method: "POST", body: JSON.stringify({ password }) }),
+  me: () => req("/auth/me"),
+  verifyAdmin: async (password) => {
+    const res = await req("/admin/verify", { method: "POST", body: JSON.stringify({ password }) });
+    if (res.ok && res.token) localStorage.setItem(TOKEN_KEY, res.token);
+    return res;
+  },
 };

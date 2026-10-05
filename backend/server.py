@@ -1,5 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Query, UploadFile, File
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, JSONResponse
+from fastapi import Request
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -11,6 +12,9 @@ import logging
 import requests
 from pathlib import Path
 import bcrypt
+import hmac
+import secrets
+import jwt
 from bson import ObjectId
 from pydantic import BaseModel, Field, ConfigDict, BeforeValidator
 from typing import List, Optional, Annotated
@@ -46,6 +50,32 @@ db = client[os.environ['DB_NAME']]
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
+# ---------- Admin auth (server-side) ----------
+JWT_SECRET = os.environ.get("JWT_SECRET") or secrets.token_hex(32)
+if not os.environ.get("JWT_SECRET"):
+    logging.warning("JWT_SECRET no definido: se usa uno aleatorio (las sesiones se pierden al reiniciar).")
+JWT_TTL = timedelta(days=7)
+READ_METHODS = {"GET", "HEAD", "OPTIONS"}
+PUBLIC_WRITES = {"/api/admin/verify"}
+
+
+def _is_admin_token(token: str) -> bool:
+    try:
+        return jwt.decode(token, JWT_SECRET, algorithms=["HS256"]).get("role") == "admin"
+    except Exception:
+        return False
+
+
+@app.middleware("http")
+async def require_admin_for_writes(request: Request, call_next):
+    path = request.url.path.rstrip("/")
+    if path.startswith("/api") and request.method not in READ_METHODS and path not in PUBLIC_WRITES:
+        header = request.headers.get("authorization", "")
+        token = header[7:] if header.lower().startswith("bearer ") else ""
+        if not _is_admin_token(token):
+            return JSONResponse({"detail": "Se requiere sesión de administrador."}, status_code=401)
+    return await call_next(request)
+
 # ---------- Object storage (Emergent) ----------
 
 STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
@@ -64,7 +94,29 @@ def init_storage(force: bool = False):
     return storage_key
 
 
+# Si EMERGENT_LLM_KEY esta definida se usa el almacenamiento de Emergent; si no, el disco local
+# (UPLOAD_DIR, montado como volumen de Docker para que las fotos sobrevivan a los reinicios).
+UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", "/data/uploads"))
+
+
+def _use_emergent_storage() -> bool:
+    return bool((os.environ.get("EMERGENT_LLM_KEY") or "").strip())
+
+
+def _local_path(path: str) -> Path:
+    base = UPLOAD_DIR.resolve()
+    target = (base / path).resolve()
+    if base != target and base not in target.parents:
+        raise ValueError("Ruta de archivo no valida")
+    return target
+
+
 def put_object(path: str, data: bytes, content_type: str) -> dict:
+    if not _use_emergent_storage():
+        target = _local_path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        return {"path": path, "size": len(data)}
     key = init_storage()
     resp = requests.put(f"{STORAGE_URL}/objects/{path}",
                         headers={"X-Storage-Key": key, "Content-Type": content_type},
@@ -79,6 +131,9 @@ def put_object(path: str, data: bytes, content_type: str) -> dict:
 
 
 def storage_get_object(path: str):
+    if not _use_emergent_storage():
+        data = _local_path(path).read_bytes()
+        return data, "application/octet-stream"
     key = init_storage()
     resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
     resp.raise_for_status()
@@ -258,11 +313,15 @@ async def startup():
             upd["history"] = [{"status": doc["status"], "date": date}]
         if upd:
             await db.tags.update_one({"_id": doc["_id"]}, {"$set": upd})
-    try:
-        init_storage()
-        logging.info("Object storage initialized")
-    except Exception as e:
-        logging.error(f"Storage init failed: {e}")
+    if _use_emergent_storage():
+        try:
+            init_storage()
+            logging.info("Emergent object storage initialized")
+        except Exception as e:
+            logging.error(f"Storage init failed: {e}")
+    else:
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        logging.info(f"Photos stored on local disk: {UPLOAD_DIR}")
     logging.info(f"Loaded {len(OBJECTS)} objects ({len(FACADE_NAMES)} facade) from model")
 
 
@@ -371,19 +430,31 @@ async def get_viewer():
                         headers={"Cache-Control": "no-cache"})
 
 
+@api_router.get("/auth/me")
+async def auth_me(request: Request):
+    header = request.headers.get("authorization", "")
+    token = header[7:] if header.lower().startswith("bearer ") else ""
+    return {"admin": _is_admin_token(token)}
+
+
 @api_router.post("/admin/verify")
 async def verify_admin(payload: AdminVerifyRequest):
-    """Verify the shared admin password against the bcrypt hash in the env."""
-    hashed = os.environ.get("ADMIN_PASSWORD_HASH", "")
+    """Check the shared admin password (ADMIN_PASSWORD or bcrypt ADMIN_PASSWORD_HASH) and issue a JWT."""
     ok = False
-    if hashed and payload.password:
+    pw = payload.password or ""
+    plain = os.environ.get("ADMIN_PASSWORD", "")
+    hashed = os.environ.get("ADMIN_PASSWORD_HASH", "")
+    if pw and plain:
+        ok = hmac.compare_digest(pw.encode(), plain.encode())
+    if not ok and pw and hashed:
         try:
-            ok = bcrypt.checkpw(payload.password.encode(), hashed.encode())
+            ok = bcrypt.checkpw(pw.encode(), hashed.encode())
         except Exception:
             ok = False
     if not ok:
         return {"ok": False, "message": "Contraseña de administrador incorrecta."}
-    return {"ok": True, "message": "Acceso de administrador concedido."}
+    token = jwt.encode({"role": "admin", "exp": datetime.now(timezone.utc) + JWT_TTL}, JWT_SECRET, algorithm="HS256")
+    return {"ok": True, "message": "Acceso de administrador concedido.", "token": token}
 
 
 @api_router.get("/facades/count")
@@ -439,6 +510,8 @@ async def upload_photo(file: UploadFile = File(...)):
     if len(data) > 10 * 1024 * 1024:
         raise HTTPException(status_code=422, detail="La imagen supera el límite de 10 MB")
     ext = file.filename.rsplit(".", 1)[-1].lower() if "." in (file.filename or "") else "jpg"
+    if not re.fullmatch(r"[a-z0-9]{1,5}", ext):
+        ext = "jpg"
     path = f"{APP_NAME}/uploads/{uuid.uuid4()}.{ext}"
     try:
         result = put_object(path, data, file.content_type)

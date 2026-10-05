@@ -1,0 +1,65 @@
+# NavBIMTracker en el VPS. Usa el proxy compartido (carpeta ~/proxy) que expone 80/443.
+# Uso (desde la raiz del repo):  docker compose -f deploy/docker-compose.prod.yml up -d --build
+# Los valores salen de deploy/.env (copia deploy/.env.example; nunca lo subas a git).
+name: navtracker
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USER:?define MONGO_USER en deploy/.env}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD:?define MONGO_PASSWORD en deploy/.env}
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: ../backend
+    restart: unless-stopped
+    environment:
+      - MONGO_URL=mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
+      - DB_NAME=${DB_NAME:-navtracker}
+      - EMERGENT_LLM_KEY=${EMERGENT_LLM_KEY:-}
+      - JWT_SECRET=${JWT_SECRET:?define JWT_SECRET en deploy/.env}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?define ADMIN_PASSWORD en deploy/.env}
+      - UPLOAD_DIR=/data/uploads
+    volumes:
+      - uploads:/data/uploads
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 180s
+      retries: 5
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      default: {}
+      web:
+        aliases: [tracker-backend]
+
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        - REACT_APP_BACKEND_URL=https://${DOMAIN:?define DOMAIN en deploy/.env}
+    restart: unless-stopped
+    networks:
+      default: {}
+      web:
+        aliases: [tracker-frontend]
+
+networks:
+  web:
+    external: true
+    name: web
+
+volumes:
+  mongo-data:
+  uploads:
