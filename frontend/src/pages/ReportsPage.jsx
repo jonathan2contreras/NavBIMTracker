@@ -140,21 +140,35 @@ export default function ReportsPage() {
   }, [type, weekOffset, monthOffset, dayDate, fromText, toText, customStatus, customFacade, team]);
 
   const exportReport = useCallback(
-    (format) => {
+    async (format) => {
       const { from, to, status, facade, team: tm } = getRange();
       if (!DATE_RE.test(from) || !DATE_RE.test(to)) {
         setError("Fechas inválidas. Usa el formato AAAA-MM-DD.");
         return;
       }
-      const url = `${BACKEND_URL}/api/report/export?format=${format}&from=${from}&to=${to}&status=${status}&facade=${facade}&team=${tm}`;
+      const query = new URLSearchParams({ format, from, to, status, facade, team: tm });
+      setError("");
       setExporting(format);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `reporte_${from}_${to}.${format}`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => setExporting(""), 800);
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/report/export?${query}`);
+        if (!res.ok) {
+          let detail = "";
+          try { detail = (await res.json()).detail; } catch { /* the body was not JSON */ }
+          throw new Error(typeof detail === "string" && detail ? detail : `El servidor respondió ${res.status}.`);
+        }
+        const href = URL.createObjectURL(await res.blob());
+        const a = document.createElement("a");
+        a.href = href;
+        a.download = `reporte_${from}_${to}.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(href), 10000);
+      } catch (err) {
+        setError(`No se pudo exportar el ${format === "pdf" ? "PDF" : "Excel"}: ${err.message}`);
+      } finally {
+        setExporting("");
+      }
     },
     [getRange]
   );
