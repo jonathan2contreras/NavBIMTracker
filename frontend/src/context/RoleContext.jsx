@@ -1,23 +1,34 @@
-import React, { createContext, useCallback, useContext, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { api, TOKEN_KEY } from "../lib/api";
 
-const KEY = "bim_role";
-const RoleContext = createContext(null);
+// Everyone can view; editing controls appear only after the shared admin password is entered.
+const RoleContext = createContext({ isAdmin: false, role: "viewer" });
 
 export const RoleProvider = ({ children }) => {
-  const [role, setRoleState] = useState(() => localStorage.getItem(KEY) || null);
+  const [isAdmin, setIsAdmin] = useState(() => !!localStorage.getItem(TOKEN_KEY));
 
-  const setRole = useCallback((r) => {
-    localStorage.setItem(KEY, r);
-    setRoleState(r);
+  useEffect(() => {
+    const onLogout = () => setIsAdmin(false);
+    window.addEventListener("admin-logout", onLogout);
+    if (localStorage.getItem(TOKEN_KEY)) {
+      api.me().then((r) => { if (!r.admin) { localStorage.removeItem(TOKEN_KEY); setIsAdmin(false); } }).catch(() => {});
+    }
+    return () => window.removeEventListener("admin-logout", onLogout);
+  }, []);
+
+  const login = useCallback(async (password) => {
+    const res = await api.verifyAdmin(password);
+    if (!res.ok) throw new Error(res.message || "Contraseña de administrador incorrecta.");
+    setIsAdmin(true);
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem(KEY);
-    setRoleState(null);
+    localStorage.removeItem(TOKEN_KEY);
+    setIsAdmin(false);
   }, []);
 
   return (
-    <RoleContext.Provider value={{ role, isAdmin: role === "admin", setRole, logout }}>
+    <RoleContext.Provider value={{ isAdmin, role: isAdmin ? "admin" : "viewer", login, logout }}>
       {children}
     </RoleContext.Provider>
   );

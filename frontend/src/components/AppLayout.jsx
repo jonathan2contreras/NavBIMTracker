@@ -1,8 +1,9 @@
 import React from "react";
-import { Navigate, NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Box, Camera, List, LogOut, PieChart, Users } from "lucide-react";
+import { NavLink, Outlet } from "react-router-dom";
+import { Box, Camera, List, PieChart, Users } from "lucide-react";
 
 import { useRole } from "../context/RoleContext";
+import AdminLogin from "./AdminLogin";
 import { SyncToast } from "./SyncToast";
 
 const TABS = [
@@ -14,39 +15,20 @@ const TABS = [
 ];
 
 export default function AppLayout() {
-  const { role, logout } = useRole();
-  const navigate = useNavigate();
-  if (!role) return <Navigate to="/login" replace />;
+  const { isAdmin } = useRole();
 
   return (
-    <div className="flex h-screen flex-col bg-white">
-      <div
-        className="relative flex shrink-0 items-center bg-[#F2F2F7] px-4 py-2 sm:px-6"
-        data-testid="top-bar"
-      >
-        <span className="mx-auto text-[12px] font-bold text-[#3A3A3C]" data-testid="top-bar-role">
-          {role === "admin" ? "Administrador" : "Usuario (solo lectura)"}
-        </span>
-        <button
-          data-testid="top-bar-logout"
-          onClick={() => {
-            logout();
-            navigate("/login", { replace: true });
-          }}
-          className="absolute right-4 flex h-8 items-center gap-1.5 rounded-full bg-white px-3 text-[12px] font-bold text-[#636366] shadow-sm transition-opacity hover:opacity-70 sm:right-6"
-        >
-          <LogOut size={15} /> Salir
-        </button>
-      </div>
-      <nav className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[#E5E5EA] bg-white px-4 py-2.5 sm:px-6" data-testid="main-nav">
-        {TABS.filter((t) => !t.adminOnly || role === "admin").map((t) => (
+    <div className="flex h-dvh min-w-0 flex-col bg-white">
+      <p className="shrink-0 px-2 pt-3 text-center text-sm font-black tracking-[0.2em] text-[#1C1C1E] sm:px-6" data-testid="app-title">NaBIMTracker</p>
+      <nav aria-label="Navegación principal" className="flex min-w-0 shrink-0 flex-nowrap items-center gap-1 overflow-x-auto border-b border-[#E5E5EA] bg-white px-2 py-2 sm:px-6" data-testid="main-nav">
+        {TABS.filter((t) => !t.adminOnly || isAdmin).map((t) => (
           <NavLink
             key={t.to}
             to={t.to}
             end={t.end}
             data-testid={t.testId}
             className={({ isActive }) =>
-              `flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2.5 text-[13px] font-semibold transition-colors ${
+              `flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-2.5 text-xs font-semibold transition-colors sm:px-3.5 sm:text-[13px] ${
                 isActive ? "bg-[#1C1C1E] text-white" : "text-[#3A3A3C] hover:bg-[#F2F2F7]"
               }`
             }
@@ -55,8 +37,11 @@ export default function AppLayout() {
             {t.label}
           </NavLink>
         ))}
+        <div className="ml-auto flex shrink-0 items-center gap-1 border-l border-[#E5E5EA] pl-2 sm:pl-3">
+          <AdminLogin />
+        </div>
       </nav>
-      <main className="min-h-0 flex-1">
+      <main className="min-h-0 min-w-0 flex-1">
         <Outlet />
       </main>
       <SyncToast />

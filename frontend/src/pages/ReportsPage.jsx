@@ -45,8 +45,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export default function ReportsPage() {
   const navigate = useNavigate();
-  const { role } = useRole();
-  const isAdmin = role === "admin";
+  const { isAdmin } = useRole();
   const [type, setType] = useState("semanal");
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
