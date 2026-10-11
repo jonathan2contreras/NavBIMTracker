@@ -1,10 +1,14 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Query, UploadFile, File
-from fastapi.responses import FileResponse, Response, JSONResponse
+from fastapi.responses import FileResponse, Response, JSONResponse, StreamingResponse
 from fastapi import Request
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import asyncio
+import tempfile
+import shutil
+import gzip
 import json
 import re
 import uuid
@@ -286,6 +290,9 @@ def is_facade(mark: str) -> bool:
 
 @app.on_event("startup")
 async def startup():
+    # Build the compressed model in the background so the first visitor does not wait for it.
+    if MODEL_PATH.exists():
+        asyncio.get_running_loop().run_in_executor(None, _gzip_model)
     global OBJECTS, NAME_SET, FACADE_NAMES, FACADES, DIMS
     OBJECTS = load_objects()
     NAME_SET = {o['name'] for o in OBJECTS}
@@ -418,10 +425,44 @@ async def root():
     return {"message": "BIMTracker API", "objects": len(OBJECTS)}
 
 
+_MODEL_GZ = {"path": None, "stamp": None}
+
+
+def _gzip_model() -> Path:
+    """Compressed copy of the GLB (built once per model version): the geometry shrinks to ~25%."""
+    stamp = (MODEL_PATH.stat().st_size, int(MODEL_PATH.stat().st_mtime))
+    target = Path(tempfile.gettempdir()) / f"nab3d-{stamp[0]}-{stamp[1]}.glb.gz"
+    if _MODEL_GZ["stamp"] == stamp and target.exists():
+        return target
+    if not target.exists():
+        part = target.with_suffix(".part")
+        with open(MODEL_PATH, "rb") as src, gzip.GzipFile(fileobj=open(part, "wb"), mode="wb", compresslevel=9, mtime=0) as out:
+            shutil.copyfileobj(src, out, 1024 * 1024)
+        part.replace(target)
+    _MODEL_GZ.update(path=target, stamp=stamp)
+    return target
+
+
 @api_router.get("/model")
-async def get_model():
-    return FileResponse(MODEL_PATH, media_type="model/gltf-binary",
-                        headers={"Cache-Control": "public, max-age=86400"})
+async def get_model(request: Request):
+    st = MODEL_PATH.stat()
+    etag = f'W/"{st.st_size}-{int(st.st_mtime)}"'
+    cache = {"Cache-Control": "public, max-age=86400", "ETag": etag, "Vary": "Accept-Encoding"}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=cache)
+    if "gzip" not in request.headers.get("accept-encoding", "").lower():
+        return FileResponse(MODEL_PATH, media_type="model/gltf-binary", headers=cache)
+    path = await asyncio.to_thread(_gzip_model)
+
+    def chunks():
+        with open(path, "rb") as fh:
+            while block := fh.read(256 * 1024):
+                yield block
+
+    # No Content-Length on purpose: browsers count the decompressed bytes, so progress uses X-File-Size.
+    return StreamingResponse(chunks(), media_type="model/gltf-binary",
+                             headers={**cache, "Content-Encoding": "gzip", "X-File-Size": str(st.st_size),
+                                      "Access-Control-Expose-Headers": "X-File-Size"})
 
 
 @api_router.get("/viewer")
@@ -1118,25 +1159,59 @@ def _xlsx_header(ws, header, Font, PatternFill):
         c.fill = PatternFill(start_color="1C1C1E", end_color="1C1C1E", fill_type="solid")
 
 
+def _pdf_text(value, limit: int = 600) -> str:
+    """User text made safe for a ReportLab Paragraph: escapes <, > and & (a stray '<b>' or '<x>' used to
+    abort the whole PDF), drops control characters and caps the length so one row can never outgrow a page."""
+    from xml.sax.saxutils import escape
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", str(value or "").replace("\r", ""))
+    if len(text) > limit:
+        text = text[:limit].rstrip() + "…"
+    return escape(text).replace("\n", "<br/>")
+
+
+def _xlsx_text(value, limit: int = 32000):
+    """Excel cells reject control characters (openpyxl raises IllegalCharacterError) and >32,767 characters."""
+    if not isinstance(value, str):
+        return value
+    return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", value)[:limit]
+
+
+PDF_THUMB_PX = 360  # the photo cell is 26x22 mm: ~350 px is plenty at print resolution
+
+
+def _pdf_thumbnail(path):
+    """(jpeg_bytes, width, height) of a small, upright copy of the stored photo, or None if it can't be read.
+    Phone photos are 3-5 MB each; embedding them untouched made the PDF huge and exhausted the server's memory."""
+    from io import BytesIO
+    from PIL import Image as PILImage, ImageOps
+    data, _ = storage_get_object(path)
+    with PILImage.open(BytesIO(data)) as im:
+        im.draft("RGB", (PDF_THUMB_PX * 2, PDF_THUMB_PX * 2))  # JPEG: decode at reduced size (fast, little memory)
+        im = ImageOps.exif_transpose(im).convert("RGB")      # phones store portrait shots rotated in the EXIF tag
+        im.thumbnail((PDF_THUMB_PX, PDF_THUMB_PX))
+        out = BytesIO()
+        im.save(out, "JPEG", quality=72, optimize=True)
+        return out.getvalue(), im.size[0], im.size[1]
+
+
 def _pdf_photo(path, mm, RLImage, cache):
     """Devuelve un RLImage con la foto del panel (aspecto conservado) o '—' si no hay/error."""
     if not path:
         return "—"
     try:
         from io import BytesIO
-        from PIL import Image as PILImage
         if path not in cache:
-            data, _ = storage_get_object(path)
-            cache[path] = data
-        data = cache[path]
-        im = PILImage.open(BytesIO(data))
-        w, h = im.size
+            cache[path] = _pdf_thumbnail(path)
+        if cache[path] is None:
+            return "—"
+        data, w, h = cache[path]
         maxw, maxh = 26 * mm, 22 * mm
         rw, rh = maxw, maxw * h / w
         if rh > maxh:
             rh, rw = maxh, maxh * w / h
         return RLImage(BytesIO(data), width=rw, height=rh)
     except Exception as e:
+        cache.setdefault(path, None)
         logging.warning(f"PDF foto falló ({path}): {e}")
         return "—"
 
@@ -1157,11 +1232,11 @@ def make_pdf(data: dict, from_: str, to: str, status: str, facade: str = "all", 
     styles = getSampleStyleSheet()
     elems = []
     _pdf_letterhead(elems, mm)
-    period = f"Período: {from_} a {to} &nbsp;·&nbsp; Etiqueta: {STATUS_LABELS.get(status, status)}"
+    period = f"Período: {_pdf_text(from_, 20)} a {_pdf_text(to, 20)} &nbsp;·&nbsp; Etiqueta: {_pdf_text(STATUS_LABELS.get(status, status), 40)}"
     if facade != "all":
-        period += f" &nbsp;·&nbsp; Fachada: {FACADE_LABELS.get(facade, facade)}"
+        period += f" &nbsp;·&nbsp; Fachada: {_pdf_text(FACADE_LABELS.get(facade, facade), 40)}"
     if team != "all":
-        period += f" &nbsp;·&nbsp; Equipo: {data.get('team_label', '')}"
+        period += f" &nbsp;·&nbsp; Equipo: {_pdf_text(data.get('team_label', ''), 80)}"
     center_normal = styles["Normal"].clone("CenterNormal")
     center_normal.alignment = 1
     elems += [
@@ -1180,12 +1255,12 @@ def make_pdf(data: dict, from_: str, to: str, status: str, facade: str = "all", 
     rows = [["Pieza", "Estado", "Fachada", "Equipo", "Fecha", "Observación", "Foto"]]
     for it in data["items"]:
         rows.append([
-            Paragraph(display_name(it["name"]), styles["BodyText"]),
+            Paragraph(_pdf_text(display_name(it["name"]), 120), styles["BodyText"]),
             STATUS_LABELS.get(it["status"], it["status"]),
             FACADE_LABELS.get(it.get("facade") or "", "—"),
-            Paragraph(it.get("team_name") or "—", styles["BodyText"]),
+            Paragraph(_pdf_text(it.get("team_name") or "—", 120), styles["BodyText"]),
             (it["date"] or "")[:10],
-            Paragraph(it["observation"] or "", styles["BodyText"]),
+            Paragraph(_pdf_text(it["observation"], 1200), styles["BodyText"]),
             _pdf_photo(it.get("photo"), mm, RLImage, photo_cache),
         ])
     table = Table(rows, colWidths=[32 * mm, 18 * mm, 16 * mm, 22 * mm, 18 * mm, 46 * mm, 28 * mm], repeatRows=1)
@@ -1216,14 +1291,14 @@ def make_xlsx(data: dict, from_: str, to: str, status: str, facade: str = "all",
     ws.append([])
     _xlsx_header(ws, ["Pieza", "Estado", "Fachada", "Equipo", "Fecha", "Observación"], Font, PatternFill)
     for it in data["items"]:
-        ws.append([
+        ws.append([_xlsx_text(v) for v in (
             display_name(it["name"]),
             STATUS_LABELS.get(it["status"], it["status"]),
             FACADE_LABELS.get(it.get("facade") or "", "—"),
             it.get("team_name") or "—",
             (it["date"] or "")[:10],
             it["observation"] or "",
-        ])
+        )])
     for col, width in zip("ABCDEF", [40, 16, 12, 20, 14, 50]):
         ws.column_dimensions[col].width = width
     buf = BytesIO()
@@ -1242,14 +1317,20 @@ async def export_report(
 ):
     if format not in ("pdf", "xlsx"):
         raise HTTPException(status_code=422, detail="Formato inválido (pdf|xlsx)")
+    from starlette.concurrency import run_in_threadpool
     data = await build_report(from_, to, status, facade, team)
-    if format == "pdf":
-        content = make_pdf(data, from_, to, status, facade, team)
-        media = "application/pdf"
-    else:
-        content = make_xlsx(data, from_, to, status, facade, team)
-        media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    filename = f"reporte_{from_}_{to}.{format}"
+    # Built in a worker thread: with many photos it takes seconds and used to freeze the whole app meanwhile.
+    try:
+        if format == "pdf":
+            content = await run_in_threadpool(make_pdf, data, from_, to, status, facade, team)
+            media = "application/pdf"
+        else:
+            content = await run_in_threadpool(make_xlsx, data, from_, to, status, facade, team)
+            media = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    except Exception:
+        logging.exception("Fallo al generar el reporte %s", format)
+        raise HTTPException(status_code=500, detail="No se pudo generar el archivo. Prueba con un rango de fechas más corto o sin fotos.")
+    filename = re.sub(r"[^0-9A-Za-z_.-]", "_", f"reporte_{from_}_{to}") + f".{format}"
     return Response(
         content=content,
         media_type=media,
@@ -1286,7 +1367,7 @@ def make_teams_pdf(rows: list, label: str) -> bytes:
     _pdf_letterhead(elems, mm)
     elems += [
         Paragraph("Registro de instalaciones por equipo", styles["Title"]),
-        Paragraph(f"Equipo: {label} &nbsp;·&nbsp; Generado: {datetime.now(timezone.utc).date().isoformat()}", styles["Normal"]),
+        Paragraph(f"Equipo: {_pdf_text(label, 80)} &nbsp;·&nbsp; Generado: {datetime.now(timezone.utc).date().isoformat()}", styles["Normal"]),
         Spacer(1, 4 * mm),
         Paragraph(f"Total de paneles instalados: {len(rows)}", styles["Heading3"]),
         Spacer(1, 5 * mm),
@@ -1294,8 +1375,8 @@ def make_teams_pdf(rows: list, label: str) -> bytes:
     table_rows = [["Equipo", "Código panel", "Fachada", "Fecha"]]
     for r in rows:
         table_rows.append([
-            Paragraph(r["equipo"] or "Sin equipo", styles["BodyText"]),
-            Paragraph(display_name(r["object_name"]), styles["BodyText"]),
+            Paragraph(_pdf_text(r["equipo"] or "Sin equipo", 120), styles["BodyText"]),
+            Paragraph(_pdf_text(display_name(r["object_name"]), 120), styles["BodyText"]),
             FACADE_LABELS.get(r.get("facade") or "", "—"),
             r["date"] or "",
         ])

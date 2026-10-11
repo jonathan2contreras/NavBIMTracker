@@ -7,6 +7,38 @@
   html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#EDEEF2}
   #c{width:100%;height:100%;display:block;touch-action:none}
 </style>
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
+<link rel="modulepreload" href="https://unpkg.com/three@0.160.0/build/three.module.js">
+<link rel="modulepreload" href="https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js">
+<link rel="modulepreload" href="https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js">
+<link rel="modulepreload" href="https://unpkg.com/three@0.160.0/examples/jsm/utils/BufferGeometryUtils.js">
+<script>
+// Start downloading the model right away (in parallel with the 3D libraries) instead of after they load.
+// The server sends it gzip-compressed; X-File-Size is the real (decompressed) size, used for the progress bar.
+window.__modelLoad = (function () {
+  var listeners = [], last = 0;
+  var promise = fetch('/api/model').then(function (res) {
+    if (!res.ok) throw new Error('No se pudo descargar el modelo (HTTP ' + res.status + ')');
+    var total = parseInt(res.headers.get('X-File-Size') || res.headers.get('Content-Length') || '0', 10) || 0;
+    var reader = res.body.getReader();
+    var buf = new Uint8Array(total || 1 << 24), loaded = 0;
+    function pump() {
+      return reader.read().then(function (r) {
+        if (r.done) return buf.buffer.slice(0, loaded);
+        var need = loaded + r.value.byteLength;
+        if (need > buf.length) { var bigger = new Uint8Array(Math.max(need, buf.length * 2)); bigger.set(buf.subarray(0, loaded)); buf = bigger; }
+        buf.set(r.value, loaded); loaded = need;
+        last = total ? Math.min(99, Math.round(loaded / total * 100)) : 0;
+        for (var i = 0; i < listeners.length; i++) listeners[i](last);
+        return pump();
+      });
+    }
+    return pump();
+  });
+  promise.catch(function () {});
+  return { promise: promise, onProgress: function (fn) { listeners.push(fn); if (last) fn(last); } };
+})();
+</script>
 <script type="importmap">
 {"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
 </script>
@@ -118,6 +150,7 @@ function edgesFor(geom) {
 
 const meshesByName = {};
 const meshList = [];
+const outlineQueue = []; // meshes still waiting for their black outline
 let tags = {};
 let selectedName = null;
 let pendingTags = null;
@@ -299,8 +332,7 @@ function sanitizeName(name) {
 }
 
 const loader = new GLTFLoader();
-loader.load('/api/model',
-  (gltf) => {
+const onModelLoaded = (gltf) => {
     const root = gltf.scene;
     const origBySan = {};
     const jsonNodes = (gltf.parser && gltf.parser.json && gltf.parser.json.nodes) || [];
@@ -317,9 +349,7 @@ loader.load('/api/model',
         child.material = matFor(null, false);
         child.castShadow = true;
         child.receiveShadow = true;
-        const outline = new THREE.LineSegments(edgesFor(child.geometry), edgeMat);
-        outline.raycast = () => {};
-        child.add(outline);
+        outlineQueue.push(child);
         meshesByName[orig] = child;
         meshList.push(child);
       }
@@ -418,16 +448,33 @@ loader.load('/api/model',
         .catch(() => {});
     } catch (e) {}
     send({ type: 'loaded', count: meshList.length });
-  },
-  (xhr) => {
-    if (xhr.total > 0) {
-      send({ type: 'progress', pct: Math.round((xhr.loaded / xhr.total) * 100) });
+    buildOutlines();
+};
+
+const onModelError = (err) => {
+  send({ type: 'error', message: String(err && err.message ? err.message : err) });
+};
+
+window.__modelLoad.onProgress((pct) => send({ type: 'progress', pct }));
+window.__modelLoad.promise.then((data) => loader.parse(data, '', onModelLoaded, onModelError), onModelError);
+
+// Black outlines: computing them for ~5,500 geometries takes seconds, so the model is shown and usable first
+// and the outlines are added in small time slices that never block touch/drag.
+function buildOutlines() {
+  let index = 0;
+  const step = () => {
+    const start = performance.now();
+    while (index < outlineQueue.length && performance.now() - start < 10) {
+      const child = outlineQueue[index++];
+      const outline = new THREE.LineSegments(edgesFor(child.geometry), edgeMat);
+      outline.raycast = () => {};
+      child.add(outline);
     }
-  },
-  (err) => {
-    send({ type: 'error', message: String(err && err.message ? err.message : err) });
-  }
-);
+    if (index < outlineQueue.length) { setTimeout(step, 0); if (index % 400 < 40) requestRender(); }
+    else { outlineQueue.length = 0; requestRender(); }
+  };
+  setTimeout(step, 0);
+}
 
 // Tap to select (distinguish tap from drag)
 const raycaster = new THREE.Raycaster();

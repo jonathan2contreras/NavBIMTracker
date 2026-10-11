@@ -42,7 +42,7 @@ export default function AppLayout() {
         </div>
       </nav>
       <main className="min-h-0 min-w-0 flex-1">
-        <Outlet />
+        <React.Suspense fallback={<p className="p-6 text-sm text-[#8E8E93]" data-testid="page-loading">Cargando…</p>}><Outlet /></React.Suspense>
       </main>
       <SyncToast />
     </div>
