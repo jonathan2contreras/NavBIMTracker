@@ -1,9 +1,9 @@
 import React from "react";
-import { Loader2, X } from "lucide-react";
+import { Loader2, Tag, X } from "lucide-react";
 
 import { displayName, formatM2 } from "../lib/theme";
 
-export function MultiSelectPanel({ names, areaMap, onRemove, onClear, onExit }) {
+export function MultiSelectPanel({ names, areaMap, onRemove, onClear, onExit, canTag, onTag }) {
   const known = names.filter((n) => typeof areaMap[n] === "number");
   const total = known.reduce((acc, n) => acc + areaMap[n], 0);
   const pending = names.some((n) => areaMap[n] === undefined);
@@ -58,17 +58,27 @@ export function MultiSelectPanel({ names, areaMap, onRemove, onClear, onExit }) 
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-2 bg-[#F2F2F7] px-4 py-3">
-        <div>
+      <div className="flex items-end justify-between gap-3 bg-[#F2F2F7] px-4 py-3">
+        <div className="min-w-0">
           <p className="text-[10px] font-bold tracking-wide text-[#8E8E93]">SUPERFICIE TOTAL</p>
           <p className="flex items-center gap-2 text-lg font-extrabold text-[#111111]" data-testid="multi-total">
             {pending ? <Loader2 size={16} className="animate-spin text-[#8E8E93]" /> : formatM2(total)}
           </p>
+          {without > 0 && !pending && (
+            <p className="text-[10px] leading-tight text-[#8E8E93]" data-testid="multi-without-area">
+              {without} sin área
+            </p>
+          )}
         </div>
-        {without > 0 && !pending && (
-          <p className="text-right text-[10px] leading-tight text-[#8E8E93]" data-testid="multi-without-area">
-            {without} sin área
-          </p>
+        {canTag && (
+          <button
+            data-testid="multi-tag-button"
+            onClick={onTag}
+            disabled={names.length === 0}
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-[#1C1C1E] px-4 text-[13px] font-bold text-white disabled:opacity-40"
+          >
+            <Tag size={15} /> Etiquetar
+          </button>
         )}
       </div>
     </div>
