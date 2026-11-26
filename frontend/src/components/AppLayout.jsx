@@ -4,6 +4,7 @@ import { Box, Camera, List, PieChart, Users } from "lucide-react";
 
 import { useRole } from "../context/RoleContext";
 import AdminLogin from "./AdminLogin";
+import PersistentViewer from "@/components/PersistentViewer";
 import { SyncToast } from "./SyncToast";
 
 const TABS = [
@@ -41,7 +42,8 @@ export default function AppLayout() {
           <AdminLogin />
         </div>
       </nav>
-      <main className="min-h-0 min-w-0 flex-1">
+      <main className="relative min-h-0 min-w-0 flex-1">
+        <PersistentViewer />
         <React.Suspense fallback={<p className="p-6 text-sm text-[#8E8E93]" data-testid="page-loading">Cargando…</p>}><Outlet /></React.Suspense>
       </main>
       <SyncToast />
