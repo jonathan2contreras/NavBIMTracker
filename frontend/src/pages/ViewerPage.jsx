@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { AlertCircle, Hand, Loader2, Tag, X } from "lucide-react";
+import { AlertCircle, Hand, ListChecks, Loader2, Tag, X } from "lucide-react";
 
 import { api, VIEWER_URL } from "../lib/api";
 import { TagSheet } from "../components/TagSheet";
 import { notifySync } from "../components/SyncToast";
 import { CompassRose } from "../components/CompassRose";
+import { MultiSelectPanel } from "../components/MultiSelectPanel";
 import { LOGOS, NO_STATUS_COLOR, STATUSES, displayName } from "../lib/theme";
 import { useViewerStartup } from "@/hooks/useViewerStartup";
 
@@ -28,6 +29,9 @@ export default function ViewerPage() {
   const [sheetObj, setSheetObj] = useState(null);
   const [hover, setHover] = useState(null);
   const [heading, setHeading] = useState(0);
+  const [multi, setMulti] = useState(false);
+  const [multiNames, setMultiNames] = useState([]);
+  const [areaMap, setAreaMap] = useState({});
   const loadedRef = useRef(false);
   const pendingFocusRef = useRef(null);
   const [searchParams] = useSearchParams();
@@ -117,12 +121,47 @@ export default function ViewerPage() {
         setHover(msg.name ? { name: msg.name, x: msg.x, y: msg.y } : null);
       } else if (msg.type === "heading") {
         setHeading(msg.angle || 0);
+      } else if (msg.type === "multiSelect") {
+        setMultiNames(msg.names || []);
       }
     };
     window.addEventListener("message", handler);
     sendCmd("getState");
     return () => window.removeEventListener("message", handler);
   }, [loadTags, sendCmd, openObject]);
+
+  // Áreas (m²) de las piezas seleccionadas: un lote por cambio de selección.
+  useEffect(() => {
+    if (!multiNames.length) {
+      setAreaMap({});
+      return undefined;
+    }
+    let cancelled = false;
+    const id = setTimeout(async () => {
+      try {
+        const res = await api.getAreas(multiNames);
+        if (cancelled) return;
+        const map = {};
+        for (const it of res.items || []) map[it.name] = it.area_m2;
+        setAreaMap(map);
+      } catch {}
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  }, [multiNames]);
+
+  const enterMulti = () => {
+    setMulti(true);
+    sendCmd("setMulti", [true]);
+  };
+
+  const exitMulti = () => {
+    setMulti(false);
+    setMultiNames([]);
+    sendCmd("setMulti", [false]);
+  };
 
   const handleIsolate = (key) => {
     setIsoFilter((prev) => {
@@ -170,6 +209,9 @@ export default function ViewerPage() {
     pendingFocusRef.current = focusedName;
     setIsoFilter("all");
     setHover(null);
+    setMulti(false);
+    setMultiNames([]);
+    setAreaMap({});
     setViewerKey((k) => k + 1);
   };
 
@@ -225,6 +267,18 @@ export default function ViewerPage() {
               );
             })}
           </div>
+
+          <button
+            data-testid="multi-select-button"
+            onClick={() => (multi ? exitMulti() : enterMulti())}
+            title="Selección múltiple: suma los m² de varias piezas"
+            className={`flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold transition-colors ${
+              multi ? "border-[#1C1C1E] bg-[#1C1C1E] text-white" : "border-[#C7C7CC] bg-white/70 text-[#3A3A3C]"
+            }`}
+          >
+            <ListChecks size={16} />
+            <span className="hidden sm:inline">Selección</span>
+          </button>
 
           <div className="relative shrink-0">
             <button
@@ -304,12 +358,24 @@ export default function ViewerPage() {
         </div>
       )}
 
-      {!loading && !error && hintVisible && !focusedName && (
+      {!loading && !error && hintVisible && !focusedName && !multi && (
         <div className="pointer-events-none absolute bottom-6 left-0 right-0 flex justify-center">
           <div className="flex items-center gap-1.5 rounded-full bg-[#1C1C1E]/85 px-4 py-2.5" data-testid="tap-hint">
             <Hand size={14} className="text-white" />
             <span className="text-[13px] font-medium text-white">Toca una pieza para etiquetarla</span>
           </div>
+        </div>
+      )}
+
+      {!loading && !error && multi && (
+        <div className="absolute inset-x-4 bottom-4 z-30 sm:inset-x-auto sm:right-4 sm:w-[340px]">
+          <MultiSelectPanel
+            names={multiNames}
+            areaMap={areaMap}
+            onRemove={(n) => sendCmd("removeMulti", [n])}
+            onClear={() => sendCmd("clearMulti")}
+            onExit={exitMulti}
+          />
         </div>
       )}
 
