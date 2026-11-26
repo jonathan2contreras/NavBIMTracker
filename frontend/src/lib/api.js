@@ -61,6 +61,7 @@ export const api = {
   },
   getTags: () => req("/tags"),
   saveTag: (body) => req("/tags", { method: "PUT", body: JSON.stringify(body) }),
+  bulkTag: (body) => req("/tags/bulk", { method: "POST", body: JSON.stringify(body) }),
   getStats: () => req("/stats"),
   getSettings: () => req("/settings"),
   updateSettings: (body) => req("/settings", { method: "PUT", body: JSON.stringify(body) }),
