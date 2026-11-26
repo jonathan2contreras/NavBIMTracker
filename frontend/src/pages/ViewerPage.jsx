@@ -7,6 +7,8 @@ import { TagSheet } from "../components/TagSheet";
 import { notifySync } from "../components/SyncToast";
 import { CompassRose } from "../components/CompassRose";
 import { MultiSelectPanel } from "../components/MultiSelectPanel";
+import { BulkTagDialog } from "../components/BulkTagDialog";
+import { useRole } from "../context/RoleContext";
 import { LOGOS, NO_STATUS_COLOR, STATUSES, displayName } from "../lib/theme";
 import { useViewerStartup } from "@/hooks/useViewerStartup";
 
@@ -17,6 +19,7 @@ const ISO_FILTERS = [
 ];
 
 export default function ViewerPage() {
+  const { isAdmin } = useRole();
   const iframeRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
@@ -32,6 +35,7 @@ export default function ViewerPage() {
   const [multi, setMulti] = useState(false);
   const [multiNames, setMultiNames] = useState([]);
   const [areaMap, setAreaMap] = useState({});
+  const [bulkOpen, setBulkOpen] = useState(false);
   const loadedRef = useRef(false);
   const pendingFocusRef = useRef(null);
   const [searchParams] = useSearchParams();
@@ -160,8 +164,23 @@ export default function ViewerPage() {
   const exitMulti = () => {
     setMulti(false);
     setMultiNames([]);
+    setBulkOpen(false);
     sendCmd("setMulti", [false]);
   };
+
+  const handleBulkApplied = useCallback(
+    (updatedNames, status) => {
+      for (const n of updatedNames) {
+        if (lastMapRef.current) lastMapRef.current[n] = status;
+        sendCmd("setTag", [n, status]);
+      }
+      // Al terminar salimos de la selección para ver los nuevos colores de estado.
+      setMulti(false);
+      setMultiNames([]);
+      sendCmd("setMulti", [false]);
+    },
+    [sendCmd]
+  );
 
   const handleIsolate = (key) => {
     setIsoFilter((prev) => {
@@ -375,6 +394,8 @@ export default function ViewerPage() {
             onRemove={(n) => sendCmd("removeMulti", [n])}
             onClear={() => sendCmd("clearMulti")}
             onExit={exitMulti}
+            canTag={isAdmin}
+            onTag={() => setBulkOpen(true)}
           />
         </div>
       )}
@@ -415,6 +436,10 @@ export default function ViewerPage() {
             Reintentar
           </button>
         </div>
+      )}
+
+      {bulkOpen && isAdmin && (
+        <BulkTagDialog names={multiNames} onApplied={handleBulkApplied} onClose={() => setBulkOpen(false)} />
       )}
 
       {sheetObj && <TagSheet obj={sheetObj} onClose={closeSheet} onSaved={handleSaved} />}
