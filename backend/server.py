@@ -690,6 +690,35 @@ async def delete_photo(object_name: str, photo: str):
     return {"deleted": True, "object_name": object_name, "observations": observations}
 
 
+class PhotoUpdate(BaseModel):
+    object_name: str
+    photo: str
+    text: str = ""
+
+
+@api_router.put("/photos")
+async def update_photo(payload: PhotoUpdate):
+    """Edita la nota (observación) asociada a una foto de obra."""
+    doc = await db.tags.find_one({"object_name": payload.object_name})
+    t = Tag.from_mongo(doc)
+    if not t or not any(ob.get("photo") == payload.photo for ob in t.observations or []):
+        raise HTTPException(status_code=404, detail="Foto no encontrada")
+    text = payload.text.strip()
+    observations = []
+    for ob in t.observations or []:
+        entry = dict(ob)
+        if entry.get("photo") == payload.photo:
+            entry["text"] = text
+        observations.append(entry)
+    latest_obs = observations[-1].get("text", "") if observations else ""
+    await db.tags.update_one(
+        {"object_name": payload.object_name},
+        {"$set": {"observations": observations, "observation": latest_obs,
+                  "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    return {"updated": True, "object_name": payload.object_name, "photo": payload.photo, "text": text}
+
+
 def missing_prev_steps(t) -> list:
     """Pasos previos que faltan en el history según el estado actual (bloquean avanzar al siguiente).
     Vacío si no aplica (sin estado, observaciones, etapa final o progresión completa)."""
