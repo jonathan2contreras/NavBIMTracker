@@ -394,6 +394,14 @@ class TagUpsert(BaseModel):
     team_name: Optional[str] = None
 
 
+class TagBulkUpsert(BaseModel):
+    names: List[str]
+    status: str
+    observation: str = ""
+    team_id: Optional[str] = None
+    team_name: Optional[str] = None
+
+
 class Team(BaseDocument):
     nombre: str
     integrantes: List[str] = []
@@ -820,40 +828,34 @@ async def get_tags():
     }
 
 
-@api_router.put("/tags")
-async def upsert_tag(payload: TagUpsert):
-    if payload.object_name not in NAME_SET:
-        raise HTTPException(status_code=404, detail="Objeto no encontrado")
-    if payload.status is not None and payload.status not in VALID_STATUSES:
-        raise HTTPException(status_code=422, detail="Estado inválido")
-    obs = payload.observation.strip()
-    photo = (payload.photo or "").strip() or None
-    existing = await db.tags.find_one({"object_name": payload.object_name})
+async def _apply_tag(object_name: str, status, obs: str, photo, team_id, team_name):
+    """Aplica estado/observacion a una pieza. Devuelve el tag guardado o None si se borro."""
+    existing = await db.tags.find_one({"object_name": object_name})
     prev = Tag.from_mongo(existing) if existing else None
-    # Regla de progresión: fabricado -> enviado -> instalado -> recepcionado (solo al cambiar de estado)
-    if payload.status in STAGE_ORDER and (not prev or prev.status != payload.status):
+    # Regla de progresion: fabricado -> enviado -> instalado -> recepcionado (solo al cambiar de estado)
+    if status in STAGE_ORDER and (not prev or prev.status != status):
         done = {ev.get("status") for ev in (prev.history if prev else [])}
-        idx = STAGE_ORDER.index(payload.status)
+        idx = STAGE_ORDER.index(status)
         missing = [s for s in STAGE_ORDER[:idx] if s not in done]
         if missing:
             labels = ", ".join(STATUS_LABELS.get(s, s) for s in missing)
             raise HTTPException(
                 status_code=422,
-                detail=f"No puedes marcar '{STATUS_LABELS.get(payload.status, payload.status)}' sin antes marcar: {labels}.",
+                detail=f"No puedes marcar '{STATUS_LABELS.get(status, status)}' sin antes marcar: {labels}.",
             )
     # delete only if clearing status, no new observation/photo and no observation history
-    if payload.status is None and not obs and not photo and not (prev and prev.observations):
-        await db.tags.delete_one({"object_name": payload.object_name})
-        return {"object_name": payload.object_name, "status": None, "observation": "", "observations": []}
+    if status is None and not obs and not photo and not (prev and prev.observations):
+        await db.tags.delete_one({"object_name": object_name})
+        return None
     now = datetime.now(timezone.utc).isoformat()
     created_at = prev.created_at if prev and prev.created_at else now
     history = list(prev.history) if prev else []
-    if payload.status and (not prev or prev.status != payload.status):
-        history.append({"status": payload.status, "date": now})
+    if status and (not prev or prev.status != status):
+        history.append({"status": status, "date": now})
     # attach installing team to the latest 'instalado' history event
-    if payload.status == "instalado":
-        team_id = (payload.team_id or "").strip() or None
-        team_name = (payload.team_name or "").strip() or None
+    if status == "instalado":
+        team_id = (team_id or "").strip() or None
+        team_name = (team_name or "").strip() or None
         if team_id:
             for ev in reversed(history):
                 if ev.get("status") == "instalado":
@@ -868,8 +870,8 @@ async def upsert_tag(payload: TagUpsert):
         observations.append(entry)
     latest_obs = observations[-1]["text"] if observations else ""
     tag = Tag(
-        object_name=payload.object_name,
-        status=payload.status,
+        object_name=object_name,
+        status=status,
         observation=latest_obs,
         updated_at=now,
         created_at=created_at,
@@ -877,7 +879,7 @@ async def upsert_tag(payload: TagUpsert):
         observations=observations,
     )
     await db.tags.update_one(
-        {"object_name": payload.object_name},
+        {"object_name": object_name},
         {"$set": tag.to_mongo()},
         upsert=True,
     )
@@ -889,6 +891,50 @@ async def upsert_tag(payload: TagUpsert):
         "history": tag.history,
         "observations": tag.observations,
     }
+
+
+@api_router.put("/tags")
+async def upsert_tag(payload: TagUpsert):
+    if payload.object_name not in NAME_SET:
+        raise HTTPException(status_code=404, detail="Objeto no encontrado")
+    if payload.status is not None and payload.status not in VALID_STATUSES:
+        raise HTTPException(status_code=422, detail="Estado inválido")
+    tag = await _apply_tag(
+        payload.object_name,
+        payload.status,
+        payload.observation.strip(),
+        (payload.photo or "").strip() or None,
+        payload.team_id,
+        payload.team_name,
+    )
+    if tag is None:
+        return {"object_name": payload.object_name, "status": None, "observation": "", "observations": []}
+    return tag
+
+
+@api_router.post("/tags/bulk")
+async def bulk_upsert_tags(payload: TagBulkUpsert):
+    """Etiqueta en lote las piezas seleccionadas en el visor (solo administradores)."""
+    if payload.status not in VALID_STATUSES:
+        raise HTTPException(status_code=422, detail="Estado inválido")
+    names: List[str] = []
+    for n in payload.names:
+        if n in NAME_SET and n not in names:
+            names.append(n)
+    if not names:
+        raise HTTPException(status_code=422, detail="No hay piezas válidas en la selección")
+    if len(names) > 500:
+        raise HTTPException(status_code=422, detail="Selecciona como máximo 500 piezas a la vez")
+    obs = payload.observation.strip()
+    updated: List[str] = []
+    blocked = []
+    for name in names:
+        try:
+            await _apply_tag(name, payload.status, obs, None, payload.team_id, payload.team_name)
+            updated.append(name)
+        except HTTPException as exc:
+            blocked.append({"name": name, "detail": exc.detail})
+    return {"updated": len(updated), "names": updated, "blocked": blocked}
 
 
 # ---------- Teams (installation crews) ----------
