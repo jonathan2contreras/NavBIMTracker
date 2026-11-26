@@ -31,6 +31,7 @@ STATIC_DIR = ROOT_DIR / 'static'
 MODEL_PATH = STATIC_DIR / 'nab3d.glb'
 OBJECTS_CACHE = STATIC_DIR / 'objects.json'
 VIEWER_PATH = STATIC_DIR / 'viewer.html'
+TIPOS_AREA_PATH = ROOT_DIR / 'tipos_area.json'
 
 VALID_STATUSES = {"fabricado", "enviado", "instalado", "entregable", "observaciones"}
 STATUS_ORDER = ["fabricado", "enviado", "instalado", "entregable", "observaciones"]
@@ -142,6 +143,28 @@ def storage_get_object(path: str):
     resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
     resp.raise_for_status()
     return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+
+# ---------- Superficies por tipo (listado CANTIDADES GRC) ----------
+TIPOS_AREA: dict = {}
+
+
+def load_tipos_area() -> dict:
+    if not TIPOS_AREA_PATH.exists():
+        return {}
+    with open(TIPOS_AREA_PATH, encoding='utf-8') as f:
+        raw = json.load(f)
+    return {str(k).strip(): float(v) for k, v in raw.items()}
+
+
+def area_for(mark: str):
+    """m2 del tipo segun el listado de cantidades; None si el tipo no esta listado."""
+    if not mark:
+        return None
+    if mark in TIPOS_AREA:
+        return TIPOS_AREA[mark]
+    # Variantes tipo "C7B-2" (duplicados del modelo) usan el area del tipo base
+    return TIPOS_AREA.get(re.sub(r'-\d+$', '', mark))
+
 
 # ---------- Object catalog (extracted from GLB) ----------
 
@@ -293,9 +316,10 @@ async def startup():
     # Build the compressed model in the background so the first visitor does not wait for it.
     if MODEL_PATH.exists():
         asyncio.get_running_loop().run_in_executor(None, _gzip_model)
-    global OBJECTS, NAME_SET, FACADE_NAMES, FACADES, DIMS
+    global OBJECTS, NAME_SET, FACADE_NAMES, FACADES, DIMS, TIPOS_AREA
     OBJECTS = load_objects()
     NAME_SET = {o['name'] for o in OBJECTS}
+    TIPOS_AREA = load_tipos_area()
     try:
         load_glb_index()
     except Exception as e:
@@ -691,9 +715,11 @@ async def list_objects(
             "status": t_status,
             "observation": t.observation if t else "",
             "blocked_missing": missing_prev_steps(t),
+            "area_m2": area_for(o['mark']),
         })
     total = len(filtered)
-    return {"total": total, "items": filtered[skip:skip + limit]}
+    area_total = round(sum(o["area_m2"] for o in filtered if o["area_m2"] is not None), 2)
+    return {"total": total, "items": filtered[skip:skip + limit], "area_total": area_total}
 
 
 @api_router.get("/object")
@@ -708,6 +734,7 @@ async def get_object(name: str):
         "mark": mark,
         "facade": FACADES.get(name),
         "dimensions": DIMS.get(name),
+        "area_m2": area_for(mark),
         "status": t.status if t else None,
         "observation": t.observation if t else "",
         "created_at": t.created_at if t else "",
