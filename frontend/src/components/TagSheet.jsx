@@ -5,7 +5,7 @@ import { api, fileUrl } from "../lib/api";
 // three.js is ~40% of the app: load it only when a panel preview is actually shown.
 const PanelPreview = React.lazy(() => import("./panel3d/PanelPreview").then((m) => ({ default: m.PanelPreview })));
 import { useRole } from "../context/RoleContext";
-import { FACADE_LABELS, NO_STATUS_COLOR, STATUSES, displayName, formatArea, formatDate, formatDims, statusMeta } from "../lib/theme";
+import { FACADE_LABELS, NO_STATUS_COLOR, STATUSES, displayName, formatArea, formatDate, formatDims, formatM2, statusMeta } from "../lib/theme";
 
 const STAGE_ORDER = ["fabricado", "enviado", "instalado", "entregable"];
 
@@ -117,7 +117,7 @@ export const TagSheet = ({ obj, onClose, onSaved }) => {
   }, [obj, status, observation, photoFile, teamId, teams, onSaved, onClose]);
 
   const dims = formatDims(obj.dimensions);
-  const area = formatArea(obj.dimensions);
+  const area = obj.area_m2 != null ? formatM2(obj.area_m2) : formatArea(obj.dimensions);
 
   return (
     <div className="fixed inset-0 z-50" data-testid="tag-sheet">
