@@ -48,6 +48,17 @@ export const api = {
     ),
   getObject: (name) => req(`/object?name=${encodeURIComponent(name)}`),
   getObjectMesh: (name) => req(`/object/mesh?name=${encodeURIComponent(name)}`),
+  getAreas: async (names) => {
+    const items = [];
+    let areaTotal = 0;
+    for (let i = 0; i < names.length; i += 100) {
+      const chunk = names.slice(i, i + 100);
+      const r = await req(`/areas?names=${encodeURIComponent(chunk.join("|"))}`);
+      items.push(...(r.items || []));
+      areaTotal += r.area_total || 0;
+    }
+    return { items, area_total: Math.round(areaTotal * 100) / 100 };
+  },
   getTags: () => req("/tags"),
   saveTag: (body) => req("/tags", { method: "PUT", body: JSON.stringify(body) }),
   getStats: () => req("/stats"),
