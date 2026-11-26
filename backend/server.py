@@ -267,7 +267,11 @@ def extract_mesh(name: str) -> dict:
     for prim in js['meshes'][js['nodes'][idx]['mesh']]['primitives']:
         if prim.get('mode', 4) != 4 or 'POSITION' not in prim['attributes']:
             continue
+        pacc = js['accessors'][prim['attributes']['POSITION']]
         pos = read_accessor(prim['attributes']['POSITION']).astype(np.float64)
+        if pacc.get('normalized'):
+            # KHR_mesh_quantization: enteros normalizados; la escala real va en la matriz del nodo
+            pos /= 32767.0
         pos = pos @ M[:3, :3].T + M[:3, 3]
         if prim.get('indices') is not None:
             ind = read_accessor(prim['indices']).reshape(-1).astype(np.int64)
