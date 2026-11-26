@@ -62,6 +62,7 @@ export const api = {
     req(`/report?from=${p.from}&to=${p.to}&status=${p.status || "all"}&facade=${p.facade || "all"}&team=${p.team || "all"}`),
   getPhotos: (p) =>
     req(`/photos?facade=${p.facade || "all"}&from=${p.from || ""}&to=${p.to || ""}`),
+  updatePhoto: (body) => req("/photos", { method: "PUT", body: JSON.stringify(body) }),
   deletePhoto: (objectName, photo) =>
     req(`/photos?object_name=${encodeURIComponent(objectName)}&photo=${encodeURIComponent(photo)}`, { method: "DELETE" }),
   me: () => req("/auth/me"),
