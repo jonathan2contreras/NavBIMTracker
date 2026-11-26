@@ -6,7 +6,7 @@ import { api } from "../lib/api";
 import { TagSheet } from "../components/TagSheet";
 import { Chip } from "../components/Chip";
 import { notifySync } from "../components/SyncToast";
-import { FACADE_FILTERS, FACADE_LABELS, NO_STATUS_COLOR, STATUSES, displayName, statusMeta } from "../lib/theme";
+import { FACADE_FILTERS, FACADE_LABELS, NO_STATUS_COLOR, STATUSES, displayName, formatM2, statusMeta } from "../lib/theme";
 
 const PAGE_SIZE = 50;
 
@@ -24,6 +24,7 @@ export default function ObjectsPage() {
   const [facadeFilter, setFacadeFilter] = useState("all");
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
+  const [areaTotal, setAreaTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
@@ -52,6 +53,7 @@ export default function ObjectsPage() {
         });
         if (id !== requestId.current) return;
         setTotal(res.total);
+        setAreaTotal(res.area_total || 0);
         setItems(reset ? res.items : [...currentItems, ...res.items]);
       } catch {
         if (id === requestId.current) setError(true);
@@ -122,7 +124,9 @@ export default function ObjectsPage() {
         <div className="flex items-baseline justify-between px-4">
           <h1 className="text-2xl font-extrabold text-[#111111]">Objetos</h1>
           <span className="text-xs font-medium text-[#8E8E93]" data-testid="objects-total-count">
-            {loading ? "Cargando..." : `${total.toLocaleString("es-ES")} resultados`}
+            {loading
+              ? "Cargando..."
+              : `${total.toLocaleString("es-ES")} resultados${areaTotal > 0 ? ` · ${formatM2(areaTotal)}` : ""}`}
           </span>
         </div>
 
@@ -222,6 +226,9 @@ export default function ObjectsPage() {
                       </span>
                       {!!item.facade && FACADE_LABELS[item.facade] && (
                         <span className="font-semibold text-[#007AFF]">· {FACADE_LABELS[item.facade]}</span>
+                      )}
+                      {item.area_m2 != null && (
+                        <span className="shrink-0 font-semibold text-[#8E8E93]">· {formatM2(item.area_m2)}</span>
                       )}
                       {!!item.observation && (
                         <span className="truncate text-[#8E8E93]">· {item.observation}</span>
