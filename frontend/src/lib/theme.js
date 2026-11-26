@@ -58,6 +58,11 @@ export function formatArea(d) {
   return p ? `${(p.w * p.h).toFixed(2)} m²` : "";
 }
 
+export function formatM2(value) {
+  if (value === null || value === undefined || isNaN(value)) return "";
+  return `${Number(value).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²`;
+}
+
 export function formatDims(d) {
   const p = dimParts(d);
   return p ? `${p.w.toFixed(2)} × ${p.h.toFixed(2)} m` : "";
