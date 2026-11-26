@@ -7,6 +7,8 @@ import { TagSheet } from "../components/TagSheet";
 import { notifySync } from "../components/SyncToast";
 import { CompassRose } from "../components/CompassRose";
 import { LOGOS, NO_STATUS_COLOR, STATUSES, displayName } from "../lib/theme";
+import { useViewerStartup } from "@/hooks/useViewerStartup";
+
 const ISO_FILTERS = [
   { key: "all", label: "Todas" },
   ...STATUSES.map((s) => ({ key: s.key, label: s.label, color: s.color, accent: s.accent, textOn: s.textOn })),
@@ -31,6 +33,8 @@ export default function ViewerPage() {
   const [searchParams] = useSearchParams();
   const focus = searchParams.get("focus");
   const t = searchParams.get("t");
+
+  useViewerStartup(loading, viewerKey, setLoading, setError);
 
   const sendCmd = useCallback((cmd, args = []) => {
     const payload = JSON.stringify({ __viewerCmd: true, cmd, args });
@@ -80,6 +84,7 @@ export default function ViewerPage() {
 
   useEffect(() => {
     const handler = (e) => {
+      if (e.source !== iframeRef.current?.contentWindow) return;
       if (typeof e.data !== "string") return;
       let msg;
       try {
@@ -90,6 +95,8 @@ export default function ViewerPage() {
       if (!msg || !msg.type) return;
       if (msg.type === "progress") setProgress(msg.pct);
       else if (msg.type === "loaded") {
+        if (loadedRef.current) return;
+        setError("");
         setLoading(false);
         loadedRef.current = true;
         loadTags();
@@ -99,6 +106,7 @@ export default function ViewerPage() {
           sendCmd("focusObject", [f]);
         }
       } else if (msg.type === "error") {
+        loadedRef.current = false;
         setLoading(false);
         setError(msg.message || "Error al cargar el modelo");
       } else if (msg.type === "select") {
@@ -112,6 +120,7 @@ export default function ViewerPage() {
       }
     };
     window.addEventListener("message", handler);
+    sendCmd("getState");
     return () => window.removeEventListener("message", handler);
   }, [loadTags, sendCmd, openObject]);
 
@@ -157,6 +166,10 @@ export default function ViewerPage() {
     setLoading(true);
     setProgress(0);
     loadedRef.current = false;
+    lastMapRef.current = null;
+    pendingFocusRef.current = focusedName;
+    setIsoFilter("all");
+    setHover(null);
     setViewerKey((k) => k + 1);
   };
 
@@ -166,6 +179,7 @@ export default function ViewerPage() {
         key={viewerKey}
         ref={iframeRef}
         src={VIEWER_URL}
+        onLoad={() => sendCmd("getState")}
         title="Visor 3D"
         className="block h-full w-full border-0"
         data-testid="model-viewer-iframe"
@@ -326,6 +340,7 @@ export default function ViewerPage() {
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-white px-8" data-testid="viewer-error">
           <AlertCircle size={40} className="text-[#FF3B30]" />
           <p className="mt-4 text-base font-bold text-[#111111]">Error al cargar el modelo</p>
+          <p className="mt-2 max-w-md text-center text-sm text-[#636366]" data-testid="viewer-error-detail">{error}</p>
           <button
             data-testid="viewer-retry-button"
             onClick={retry}

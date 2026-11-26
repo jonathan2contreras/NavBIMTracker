@@ -490,6 +490,23 @@ async def get_model(request: Request):
                                       "Access-Control-Expose-Headers": "X-File-Size"})
 
 
+@api_router.get("/viewer-assets/three-0.160.0/{asset_path:path}")
+async def get_viewer_asset(asset_path: str):
+    # Fixed allowlist: never expose arbitrary files from the backend.
+    allowed = {
+        "build/three.module.js",
+        "examples/jsm/controls/OrbitControls.js",
+        "examples/jsm/loaders/GLTFLoader.js",
+        "examples/jsm/utils/BufferGeometryUtils.js",
+        "examples/jsm/libs/meshopt_decoder.module.js",
+    }
+    if asset_path not in allowed:
+        raise HTTPException(status_code=404, detail="Recurso del visor no encontrado")
+    return FileResponse(STATIC_DIR / "vendor" / "three-0.160.0" / asset_path,
+                        media_type="application/javascript",
+                        headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
 @api_router.get("/viewer")
 async def get_viewer():
     return FileResponse(VIEWER_PATH, media_type="text/html",
