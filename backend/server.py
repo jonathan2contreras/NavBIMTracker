@@ -267,11 +267,7 @@ def extract_mesh(name: str) -> dict:
     for prim in js['meshes'][js['nodes'][idx]['mesh']]['primitives']:
         if prim.get('mode', 4) != 4 or 'POSITION' not in prim['attributes']:
             continue
-        pacc = js['accessors'][prim['attributes']['POSITION']]
         pos = read_accessor(prim['attributes']['POSITION']).astype(np.float64)
-        if pacc.get('normalized'):
-            # KHR_mesh_quantization: enteros normalizados; la escala real va en la matriz del nodo
-            pos /= 32767.0
         pos = pos @ M[:3, :3].T + M[:3, 3]
         if prim.get('indices') is not None:
             ind = read_accessor(prim['indices']).reshape(-1).astype(np.int64)
@@ -475,7 +471,8 @@ def _gzip_model() -> Path:
 async def get_model(request: Request):
     st = MODEL_PATH.stat()
     etag = f'W/"{st.st_size}-{int(st.st_mtime)}"'
-    cache = {"Cache-Control": "public, max-age=86400", "ETag": etag, "Vary": "Accept-Encoding"}
+    # no-cache: se guarda pero se revalida siempre, para que un modelo nuevo nunca conviva con uno viejo en caché
+    cache = {"Cache-Control": "public, no-cache", "ETag": etag, "Vary": "Accept-Encoding"}
     if request.headers.get("if-none-match") == etag:
         return Response(status_code=304, headers=cache)
     if "gzip" not in request.headers.get("accept-encoding", "").lower():

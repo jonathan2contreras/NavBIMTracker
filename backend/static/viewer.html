@@ -17,7 +17,8 @@
 // The server sends it gzip-compressed; X-File-Size is the real (decompressed) size, used for the progress bar.
 window.__modelLoad = (function () {
   var listeners = [], last = 0;
-  var promise = fetch('/api/model').then(function (res) {
+  // cache: 'no-cache' obliga a revalidar (ETag): asi ningun navegador reutiliza un modelo viejo ya cacheado
+  var promise = fetch('/api/model', { cache: 'no-cache' }).then(function (res) {
     if (!res.ok) throw new Error('No se pudo descargar el modelo (HTTP ' + res.status + ')');
     var total = parseInt(res.headers.get('X-File-Size') || res.headers.get('Content-Length') || '0', 10) || 0;
     var reader = res.body.getReader();
@@ -49,6 +50,7 @@ window.__modelLoad = (function () {
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 const STATUS_COLORS = { fabricado: 0x007AFF, enviado: 0xFF9500, instalado: 0x34C759, entregable: 0xF3EAD0, observaciones: 0xFFD60A };
 const BASE_COLOR = 0xC9CFDA;
@@ -332,6 +334,7 @@ function sanitizeName(name) {
 }
 
 const loader = new GLTFLoader();
+loader.setMeshoptDecoder(MeshoptDecoder); // modelo comprimido con meshopt
 const onModelLoaded = (gltf) => {
     const root = gltf.scene;
     const origBySan = {};
