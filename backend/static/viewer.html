@@ -147,7 +147,16 @@ window.addEventListener('resize', () => {
 
 // Materials (shared per status/highlight combo)
 const matCache = {};
-function matFor(status, highlighted) {
+function matFor(status, highlighted, multi) {
+  // Piezas de la selección múltiple: color propio para distinguirlas de cualquier estado.
+  if (multi) {
+    if (!matCache.multi) {
+      const mm = new THREE.MeshLambertMaterial({ color: 0x00C7BE, side: THREE.DoubleSide });
+      mm.emissive = new THREE.Color(0x00C7BE).multiplyScalar(0.55);
+      matCache.multi = mm;
+    }
+    return matCache.multi;
+  }
   const key = (status || 'none') + (highlighted ? '_hl' : '');
   if (!matCache[key]) {
     let color = status && STATUS_COLORS[status] ? STATUS_COLORS[status] : BASE_COLOR;
@@ -177,6 +186,8 @@ const meshList = [];
 const outlineQueue = []; // meshes still waiting for their black outline
 let tags = {};
 let selectedName = null;
+let multiMode = false;
+const multiNames = new Set();
 let pendingTags = null;
 let pendingFocus = null;
 let isolation = 'all';
@@ -193,7 +204,7 @@ function isVisibleFor(name) {
 function refreshMesh(name) {
   const m = meshesByName[name];
   if (!m) return;
-  m.material = matFor(tags[name] || null, name === selectedName || name === hoverName);
+  m.material = matFor(tags[name] || null, name === selectedName || name === hoverName, multiNames.has(name));
   setOutline(m, name === hoverName);
   m.visible = isVisibleFor(name);
   renderer.shadowMap.needsUpdate = true;
@@ -212,7 +223,7 @@ function setOutline(mesh, hovered) {
 function applyAll() {
   for (const mesh of meshList) {
     const key = mesh.userData.orig || mesh.name;
-    mesh.material = matFor(tags[key] || null, key === selectedName || key === hoverName);
+    mesh.material = matFor(tags[key] || null, key === selectedName || key === hoverName, multiNames.has(key));
     mesh.visible = isVisibleFor(key);
   }
   renderer.shadowMap.needsUpdate = true;
@@ -254,6 +265,10 @@ function focusByName(name) {
   animateCamera(center.clone().add(dir.multiplyScalar(dist)), center);
 }
 
+function sendMulti() {
+  send({ type: 'multiSelect', names: Array.from(multiNames) });
+}
+
 window.viewerAPI = {
   applyTags(json) {
     const o = typeof json === 'string' ? JSON.parse(json) : (json || {});
@@ -269,6 +284,27 @@ window.viewerAPI = {
     const prev = selectedName;
     selectedName = null;
     if (prev) refreshMesh(prev);
+  },
+  setMulti(on) {
+    multiMode = !!on;
+    if (!multiMode && multiNames.size) {
+      const prev = Array.from(multiNames);
+      multiNames.clear();
+      if (loaded) for (const n of prev) refreshMesh(n);
+      sendMulti();
+    }
+  },
+  clearMulti() {
+    const prev = Array.from(multiNames);
+    multiNames.clear();
+    if (loaded) for (const n of prev) refreshMesh(n);
+    sendMulti();
+  },
+  removeMulti(name) {
+    if (!multiNames.has(name)) return;
+    multiNames.delete(name);
+    refreshMesh(name);
+    sendMulti();
   },
   isolate(mode) {
     isolation = mode || 'all';
@@ -520,6 +556,13 @@ canvas.addEventListener('pointerup', (e) => {
   const hits = raycaster.intersectObjects(meshList.filter((m) => m.visible), false);
   if (hits.length > 0) {
     const name = hits[0].object.userData.orig || hits[0].object.name;
+    if (multiMode) {
+      if (multiNames.has(name)) multiNames.delete(name);
+      else multiNames.add(name);
+      refreshMesh(name);
+      sendMulti();
+      return;
+    }
     const prev = selectedName;
     selectedName = name;
     if (prev) refreshMesh(prev);
