@@ -790,6 +790,17 @@ async def get_object(name: str):
     }
 
 
+@api_router.get("/areas")
+async def areas_for(names: str = ""):
+    """m2 de cada objeto pedido (nombres separados por '|'), para la selección múltiple del visor."""
+    items = []
+    for name in [n for n in names.split("|") if n][:200]:
+        mark = name.split(" ")[0]
+        items.append({"name": name, "mark": mark, "area_m2": area_for(mark)})
+    total = round(sum(i["area_m2"] for i in items if i["area_m2"] is not None), 2)
+    return {"items": items, "area_total": total, "missing": sum(1 for i in items if i["area_m2"] is None)}
+
+
 @api_router.get("/object/mesh")
 async def get_object_mesh(name: str):
     """Triangulated geometry of a single object (world-space, centered) for the panel preview."""
