@@ -63,17 +63,14 @@ window.__modelLoad = (function () {
   return { promise: promise, onProgress: function (fn) { listeners.push(fn); if (last) fn(last); } };
 })();
 </script>
-<script type="importmap">
-{"imports":{"three":"/api/viewer-assets/three-0.160.0/build/three.module.js","three/addons/":"/api/viewer-assets/three-0.160.0/examples/jsm/"}}
-</script>
 </head>
 <body>
 <canvas id="c"></canvas>
 <script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import * as THREE from '/api/viewer-assets/three-0.160.0/build/three.module.js';
+import { OrbitControls } from '/api/viewer-assets/three-0.160.0/examples/jsm/controls/OrbitControls.js';
+import { GLTFLoader } from '/api/viewer-assets/three-0.160.0/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from '/api/viewer-assets/three-0.160.0/examples/jsm/libs/meshopt_decoder.module.js';
 
 const STATUS_COLORS = { fabricado: 0x007AFF, enviado: 0xFF9500, instalado: 0x34C759, entregable: 0xF3EAD0, observaciones: 0xFFD60A };
 const BASE_COLOR = 0xC9CFDA;
