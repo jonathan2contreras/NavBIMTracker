@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, Camera, Check, Compass, ImagePlus, Loader2, Search, Trash2, X } from "lucide-react";
+import { ArrowRight, Camera, Check, Compass, ImagePlus, Loader2, Pencil, Search, Trash2, X } from "lucide-react";
 
 import { api, fileUrl } from "../lib/api";
 import { Chip } from "../components/Chip";
@@ -20,6 +20,10 @@ export default function PhotosPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState("");
 
   const newFileInputRef = useRef(null);
   const [adding, setAdding] = useState(false);
@@ -65,6 +69,8 @@ export default function PhotosPage() {
     setLightbox(it);
     setConfirmDelete(false);
     setDeleteError("");
+    setEditing(false);
+    setEditError("");
   };
 
   const handleDelete = useCallback(async () => {
@@ -81,6 +87,40 @@ export default function PhotosPage() {
       setDeleting(false);
     }
   }, [lightbox]);
+
+  const startEdit = useCallback(() => {
+    setEditText(lightbox?.text || "");
+    setEditError("");
+    setConfirmDelete(false);
+    setEditing(true);
+  }, [lightbox]);
+
+  const cancelEdit = useCallback(() => {
+    setEditing(false);
+    setEditError("");
+  }, []);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!lightbox) return;
+    setSavingEdit(true);
+    setEditError("");
+    const text = editText.trim();
+    try {
+      await api.updatePhoto({ object_name: lightbox.name, photo: lightbox.photo, text });
+      setData((d) =>
+        d && {
+          ...d,
+          items: d.items.map((it) => (it.photo === lightbox.photo && it.name === lightbox.name ? { ...it, text } : it)),
+        }
+      );
+      setLightbox((lb) => (lb ? { ...lb, text } : lb));
+      setEditing(false);
+    } catch {
+      setEditError("No se pudo guardar la nota. Inténtalo de nuevo.");
+    } finally {
+      setSavingEdit(false);
+    }
+  }, [lightbox, editText]);
 
   const fetchPhotos = useCallback(
     async (fac, from, to) => {
@@ -263,7 +303,7 @@ export default function PhotosPage() {
                         openLightbox(it);
                         setConfirmDelete(true);
                       }}
-                      className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#1C1C1E]/75 text-white opacity-0 transition-opacity hover:bg-[#FF3B30] group-hover:opacity-100 focus:opacity-100"
+                      className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-[#1C1C1E]/75 text-white transition-colors hover:bg-[#FF3B30]"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -317,8 +357,42 @@ export default function PhotosPage() {
             </p>
             {!!lightbox.text && <p className="mt-1 max-w-xl text-xs text-white/80">{lightbox.text}</p>}
             {isAdmin && (
-              <div className="mt-4 flex flex-col items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                {confirmDelete ? (
+              <div className="mt-4 flex w-full max-w-md flex-col items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                {editing ? (
+                  <div className="w-full" data-testid="photo-edit-form">
+                    <textarea
+                      data-testid="photo-edit-text"
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      rows={3}
+                      placeholder="Nota de la foto"
+                      className="w-full rounded-xl bg-white/15 p-3 text-xs text-white outline-none placeholder:text-white/50"
+                    />
+                    <div className="mt-2 flex items-center justify-center gap-2">
+                      <button
+                        data-testid="photo-edit-save-button"
+                        onClick={handleSaveEdit}
+                        disabled={savingEdit}
+                        className="flex h-9 items-center gap-1.5 rounded-full bg-[#34C759] px-4 text-xs font-bold text-white disabled:opacity-70"
+                      >
+                        {savingEdit ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Guardar
+                      </button>
+                      <button
+                        data-testid="photo-edit-cancel-button"
+                        onClick={cancelEdit}
+                        disabled={savingEdit}
+                        className="h-9 rounded-full bg-white/15 px-4 text-xs font-bold text-white hover:bg-white/25"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                    {!!editError && (
+                      <p className="mt-2 text-center text-xs text-[#FF6B6B]" data-testid="photo-edit-error">
+                        {editError}
+                      </p>
+                    )}
+                  </div>
+                ) : confirmDelete ? (
                   <div className="flex items-center gap-2" data-testid="photo-delete-confirm">
                     <span className="text-xs font-semibold text-white">¿Eliminar esta foto?</span>
                     <button
@@ -339,13 +413,22 @@ export default function PhotosPage() {
                     </button>
                   </div>
                 ) : (
-                  <button
-                    data-testid="photo-lightbox-delete-button"
-                    onClick={() => setConfirmDelete(true)}
-                    className="flex h-9 items-center gap-1.5 rounded-full bg-white/15 px-4 text-xs font-bold text-white hover:bg-[#FF3B30]"
-                  >
-                    <Trash2 size={14} /> Eliminar foto
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      data-testid="photo-lightbox-edit-button"
+                      onClick={startEdit}
+                      className="flex h-9 items-center gap-1.5 rounded-full bg-white/15 px-4 text-xs font-bold text-white hover:bg-white/25"
+                    >
+                      <Pencil size={14} /> Editar
+                    </button>
+                    <button
+                      data-testid="photo-lightbox-delete-button"
+                      onClick={() => setConfirmDelete(true)}
+                      className="flex h-9 items-center gap-1.5 rounded-full bg-white/15 px-4 text-xs font-bold text-white hover:bg-[#FF3B30]"
+                    >
+                      <Trash2 size={14} /> Eliminar foto
+                    </button>
+                  </div>
                 )}
                 {!!deleteError && (
                   <p className="text-xs text-[#FF6B6B]" data-testid="photo-delete-error">
